@@ -2,6 +2,11 @@
 #include <cstdio>
 #include <cstring>
 
+// Timer address
+#define TIMA 0xFF05
+#define TMA 0xFF06
+#define TMC 0xFF07
+
 // The consturctor will initialize and then set the required state of the emulator as if the real
 // game has started
 // gameboy doesn't have an isolate stack that's why it is allocated at the near end of higher byte
@@ -75,8 +80,23 @@ void GameBoy::WriteMemory(word address, byte data) {
     if (address < 0x8000) {
         HandleBanking(address, data);
     }
+    // if writing to the dividerRegister
+    else if (address == 0xFF04) {
+        m_rom[0xFF04] = 0; // reset to 0
+    }
+
+    // if writing to TMC
+    else if (address == TMC) {
+        byte currentFeq = GetClockFeq();
+        m_rom[TMC] = data; // this can change the enable bit or feq bits
+        byte newFeq = GetClockFeq();
+        if (currentFeq != newFeq) { //  change in feq
+            SetClockFeq();          // set new one
+        }
+    }
+
     // if within the switchable ram range
-    if (address >= 0xA000 && address <= 0xC000) {
+    else if (address >= 0xA000 && address <= 0xC000) {
         if (m_enableRAM) {
             word new_addr = address - 0xA000;
             m_CartridgeMemory[new_addr + (current_ramBank * 0x2000)] = data;
@@ -210,10 +230,70 @@ void GameBoy::DoChangeHiROMBank(byte data) {
 void GameBoy::DoChangeRAMBank(byte data) { current_ramBank = data & 3; }
 
 void GameBoy::DoChangeROMRAMBank(byte data) {
-    byte new_data = data & 0x1;
+    byte new_data = data & 0x1; // take out 1 bit
     m_enableROM = (new_data == 0) ? true : false;
     // reset  ramBank to 0
     if (m_enableROM) {
         current_ramBank = 0;
+    }
+}
+
+void GameBoy::UpdateTimers(int cycles) {
+    // update the divider register
+    DoDividerCounter(cycles);
+    // only if the timer clock is enabled
+    if (TimerClockEnabled()) {
+        m_TimerCounter -= cycles;
+        if (m_TimerCounter <= 0) {         // when finished
+            SetClockFeq();                 // reset timer counter
+            if (ReadMemory(TIMA) == 255) { // time about to overflow
+                // TMA value stores the starting count for interrupt
+                WriteMemory(TIMA, ReadMemory(TMA)); // reset with TMA value
+                // requestInterrupt(2);
+            } else {
+                WriteMemory(TIMA, ReadMemory(TIMA) + 1); // plus the current timer
+            }
+        }
+    }
+};
+
+// track the divider reigster
+void GameBoy::DoDividerCounter(int cycles) {
+    m_DividerCounter += cycles;
+    if (m_DividerCounter >= 255) {
+        m_DividerCounter = 0; // reset
+        m_rom[0xFF04]++;      // increase the divider register
+    }
+}
+// Check timer clock enabled
+// 3rd bit of the TMC return the bool for clock enable
+// 0 = disabled
+// 1 = enabled
+bool GameBoy::TimerClockEnabled() const {
+    bool status = ((ReadMemory(TMC) & 4) == 0 ? false : true);
+    return status;
+}
+
+// Last two bit of TMC gives clock feq
+byte GameBoy::GetClockFeq() const { return ReadMemory(TMC) & 3; }
+
+// ClockSpeed of GameBoy is 4,194,304
+// timerCounter = ClockSpeed/feq
+void GameBoy::SetClockFeq() {
+    byte feq = GetClockFeq();
+
+    switch (feq) {
+    case 0:                    // 00
+        m_TimerCounter = 1024; // feq 4096
+        break;
+    case 1:                  // 01
+        m_TimerCounter = 16; // feq 262,144
+        break;
+    case 2:                  // 10
+        m_TimerCounter = 64; // feq 65536
+        break;
+    case 3:                   // 11
+        m_TimerCounter = 256; // feq 16,382
+        break;
     }
 }

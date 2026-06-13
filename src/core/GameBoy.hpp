@@ -39,6 +39,11 @@ class GameBoy {
     byte m_MBU1;
     byte m_MBU2;
 
+    // track the lower bits of 0xFF04
+    byte m_DividerCounter;
+    // Timer Counter
+    int m_TimerCounter;
+
     // Handle the switch bank
     void HandleBanking(word address, byte data);
     // enable RAM Banking
@@ -51,12 +56,20 @@ class GameBoy {
     void DoChangeRAMBank(byte data);
     // Change  ROM bank
     void DoChangeROMRAMBank(byte data);
+    // Plus the divider register(use as random value and stuff)
+    void DoDividerCounter(int cycles);
+    // Timer Related functions
+    bool TimerClockEnabled() const;
+    byte GetClockFeq() const;
+    void SetClockFeq();
 
   public:
     GameBoy();
     void WriteMemory(word address, byte data);
     byte ReadMemory(word address) const;
     void ReadRom(char const *filePath);
+    void UpdateTimers(int cycles);
+    void Update();
 };
 
 #endif
