@@ -15,8 +15,10 @@ GameBoy::GameBoy()
     :
 
       m_programCounter(0x100), m_RegisterAF{.reg = 0x01B0}, m_RegisterBC{.reg = 0x0013},
-      m_RegisterDE{.reg = 0x00D8}, m_RegisterHL{.reg = 0x014D}, m_stackPointer{.reg = 0xFFFE},
-      current_romBank(1), current_ramBank(0), m_MBU1(false), m_MBU2(false), m_enableRAM(false) {
+      m_RegisterDE{.reg = 0x00D8}, m_RegisterHL{.reg = 0x014D}, current_romBank(1),
+      current_ramBank(0), m_MBU1(false), m_MBU2(false), m_enableRAM(false) {
+    // allocate stack pointer
+    m_stackPointer.reg = 0xFFFE;
     // init the ramBanks
     memset(&m_ramBanks, 0, sizeof(m_ramBanks));
     // Memmory Controller
@@ -249,7 +251,7 @@ void GameBoy::UpdateTimers(int cycles) {
             if (ReadMemory(TIMA) == 255) { // time about to overflow
                 // TMA value stores the starting count for interrupt
                 WriteMemory(TIMA, ReadMemory(TMA)); // reset with TMA value
-                // requestInterrupt(2);
+                RequestInterrupt(2);
             } else {
                 WriteMemory(TIMA, ReadMemory(TIMA) + 1); // plus the current timer
             }
@@ -296,4 +298,73 @@ void GameBoy::SetClockFeq() {
         m_TimerCounter = 256; // feq 16,382
         break;
     }
+}
+
+void GameBoy::RequestInterrupt(int id) {
+    byte req = ReadMemory(0xFF0F);
+    req |= (1 << id);         // merge what ever id position bit
+    WriteMemory(0xFF0F, req); // update the req
+}
+
+// Interrupt Bit priority
+// Bit 0: V-Blank
+// Bit 1:LCD
+// Bit 2:Timer
+// Bit 3:Joypad
+void GameBoy::DoInterrupts() {
+    if (m_MasterInterrupt) {
+        byte req = ReadMemory(0xFF0F);
+        byte enabled = ReadMemory(0xFFFF); // this is the address for interrupt enabled
+        if (req > 0) {
+            for (int i = 0; i < 5; i++) {            // exactly 4 bit to check
+                if ((req & (1 << i)) == 1) {         // check every bit in req
+                    if ((enabled & (1 << i)) == 1) { // check every bit in enalbed
+                        // ServiceRequest(i);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// this will reset the master and req register and
+// save the pc into the stack
+// V-Blank: 0x40
+// LCD: 0x48
+// TIMER: 0x50
+// JOYPAD: 0x60
+void GameBoy::ServiceInterrupt(int interrupt) {
+    m_MasterInterrupt = false;
+    byte req = ReadMemory(0xFF0F);
+    req ^= (1 << interrupt); // flip the bit
+    WriteMemory(0xFF0F, req);
+
+    PushWordToStack(m_programCounter);
+    switch (interrupt) {
+    case 0:
+        m_programCounter = 0x40;
+        break;
+    case 1:
+        m_programCounter = 0x48;
+        break;
+    case 2:
+        m_programCounter = 0x50;
+        break;
+    case 3:
+        m_programCounter = 0x60;
+        break;
+    }
+}
+
+// Store the word  to stack and update the stack pointer
+void GameBoy::PushWordToStack(word data) {
+    byte high = (data >> 8) & 0xFF;
+    byte low = data & 0xFF;
+
+    // gameboy can only store 8bit so
+    // has to store high an low
+    m_stackPointer.reg--;
+    WriteMemory(m_stackPointer.hi, high);
+    m_stackPointer.reg--;
+    WriteMemory(m_stackPointer.lo, low);
 }

@@ -44,6 +44,12 @@ class GameBoy {
     // Timer Counter
     int m_TimerCounter;
 
+    // Global Interrupt
+    bool m_MasterInterrupt;
+
+    // Push to stack
+    void PushWordToStack(word data);
+
     // Handle the switch bank
     void HandleBanking(word address, byte data);
     // enable RAM Banking
@@ -62,6 +68,12 @@ class GameBoy {
     bool TimerClockEnabled() const;
     byte GetClockFeq() const;
     void SetClockFeq();
+
+    // Interupt
+    void RequestInterrupt(int id);
+    void DoInterrupts();
+    // server interrupt req
+    void ServiceInterrupt(int interrupt);
 
   public:
     GameBoy();
