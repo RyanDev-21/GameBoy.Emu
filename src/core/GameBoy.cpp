@@ -319,7 +319,7 @@ void GameBoy::DoInterrupts() {
             for (int i = 0; i < 5; i++) {            // exactly 4 bit to check
                 if ((req & (1 << i)) == 1) {         // check every bit in req
                     if ((enabled & (1 << i)) == 1) { // check every bit in enalbed
-                        // ServiceRequest(i);
+                        ServiceInterrupt(i);
                     }
                 }
             }
@@ -356,7 +356,7 @@ void GameBoy::ServiceInterrupt(int interrupt) {
     }
 }
 
-// Store the word  to stack and update the stack pointer
+// Store the data to stack and update the stack pointer
 void GameBoy::PushWordToStack(word data) {
     byte high = (data >> 8) & 0xFF;
     byte low = data & 0xFF;
