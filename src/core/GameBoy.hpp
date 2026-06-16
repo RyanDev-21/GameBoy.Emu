@@ -44,6 +44,9 @@ class GameBoy {
     // Timer Counter
     int m_TimerCounter;
 
+    // scanline count cycles
+    int m_scalineCounter;
+
     // Global Interrupt
     bool m_MasterInterrupt;
 
@@ -74,6 +77,8 @@ class GameBoy {
     void DoInterrupts();
     // server interrupt req
     void ServiceInterrupt(int interrupt);
+    bool LCD_enabled();
+    void SetLCD_status();
 
   public:
     GameBoy();
@@ -82,6 +87,7 @@ class GameBoy {
     void ReadRom(char const *filePath);
     void UpdateTimers(int cycles);
     void Update();
+    void UpdateGraphics(int cycles);
 };
 
 #endif

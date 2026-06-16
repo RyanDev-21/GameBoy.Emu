@@ -1,6 +1,7 @@
 #include "./GameBoy.hpp"
 #include <cstdio>
 #include <cstring>
+#include <exception>
 
 // Timer address
 #define TIMA 0xFF05
@@ -85,6 +86,11 @@ void GameBoy::WriteMemory(word address, byte data) {
     // if writing to the dividerRegister
     else if (address == 0xFF04) {
         m_rom[0xFF04] = 0; // reset to 0
+    }
+
+    // if writing to the scanline
+    else if (address == 0xFF44) {
+        m_rom[0xFF44] = 0; // reset
     }
 
     // if writing to TMC
@@ -367,4 +373,107 @@ void GameBoy::PushWordToStack(word data) {
     WriteMemory(m_stackPointer.hi, high);
     m_stackPointer.reg--;
     WriteMemory(m_stackPointer.lo, low);
+}
+
+// Updae the scanline lcd
+// The GameBoy has 160x144
+// Scanline start from 0 to 153
+// 144 visible scanline && 10 invisible scanline
+// Takes 456 cycles for 1 scanline to finish
+void GameBoy::UpdateGraphics(int cycles) {
+    SetLCD_status();
+    if (LCD_enabled()) {
+        m_scalineCounter -= cycles;
+    } else {
+        return;
+    }
+    if (m_scalineCounter <= 0) { // time to move to the next line
+        m_rom[0xFF44]++;
+        byte currentLine = ReadMemory(0xFF44);
+        m_scalineCounter = 456;   // reset the cycle count
+        if (currentLine == 144) { // about to enter v-blank
+            RequestInterrupt(0);
+        } else if (currentLine > 153) { // reset to the top
+            m_rom[0xFF44] = 0;
+        } else if (currentLine < 144) {
+            // DrawScanLine
+        }
+    }
+}
+
+// Check lcd_enabled
+bool GameBoy::LCD_enabled() { return ((ReadMemory(0xFF40) & 128) == 0) ? false : true; }
+
+// LCD mode are stored in 0 and 1 bit of  0xFF41
+// ....LCD modes.....
+// 00: H-blank
+// 01: V-Blank
+// 10: Search for sprite //start from here and loops to the V-Blank
+// 11: Transfer data to LCD
+// The other bits represent Interrupt
+// Bit 2: Flip to 1 when 0xFF44 and 0xFF45 are the same(coincidence flag)
+// Bit 3: Mode 0 Interupt Enabled
+// Bit 4: Mode 1 Interupt Enabled
+// Bit 5: Mode 2 Interupt Enabled
+// Bit 6: Interrupt for Bit 2
+// LCD interrupt will tirgger when mode and their interrupt bit  are set
+//  Set LCD Status
+void GameBoy::SetLCD_status() {
+    byte status = ReadMemory(0xFF41);
+    if (LCD_enabled() == false) {
+        m_scalineCounter = 456;
+        m_rom[0xFF44] = 0; // scaline has to set to  0
+        status &= 252;     // make the first two bit to 0
+        status |= 1;       // turn on the first bit
+        WriteMemory(0xFF41, status);
+        return;
+    }
+    byte currentLine = ReadMemory(0xFF44);
+    byte currentMode = status & 0x3;
+    byte mode = 0;
+    bool reqInt = false;
+
+    // v-blank situation
+    if (currentLine >= 144) {
+        mode = 1;                    // v-blank
+        status &= 252;               // make 0 to first two bit
+        status |= 1;                 // turn on first bit
+        reqInt = (status & 16) != 0; // check interrupt
+    } else {
+        int mode2Counts = 456 - 82;          // mode 2 use  82cycles
+        int mode3Counts = mode2Counts - 172; // mode 3 use 172 cycles
+
+        // search sprite situation
+        if (m_scalineCounter >= mode2Counts) {
+            mode = 2;
+            status &= 252;
+            status |= 2;
+            reqInt = (status & 32) != 0;
+        }
+
+        // transfer data to lcd driver situation
+        if (m_scalineCounter >= mode3Counts) {
+            mode = 3;
+            status &= 252;
+            status |= 3;
+            // mode3 doesn't have interrupt
+
+        } else { // h-blank situation
+            mode = 0;
+            status &= 252;
+            reqInt = (status & 8) != 0;
+        }
+    }
+    if (reqInt && (mode != currentMode)) { //  mode switch
+        RequestInterrupt(1);               // LCD interrupt
+    }
+    if (currentLine == ReadMemory(0xFF45)) { // coincidence
+        status |= 4;                         // turn on the 2th bit
+        if ((status & 64) != 0) {            // if interrupt enabled
+            RequestInterrupt(1);
+        }
+    } else {
+        status &= ~4; // turn off  bit 2
+    }
+    WriteMemory(0xFF41, status);
 }
