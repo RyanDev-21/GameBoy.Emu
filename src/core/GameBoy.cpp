@@ -92,6 +92,10 @@ void GameBoy::WriteMemory(word address, byte data) {
     else if (address == 0xFF44) {
         m_rom[0xFF44] = 0; // reset
     }
+    // if writing to the dma source address
+    else if (address == 0xFF46) {
+        DoDMATransfer(data);
+    }
 
     // if writing to TMC
     else if (address == TMC) {
@@ -476,4 +480,16 @@ void GameBoy::SetLCD_status() {
         status &= ~4; // turn off  bit 2
     }
     WriteMemory(0xFF41, status);
+}
+
+// GameBoy doesn't allow the sprite ram to update and delete when it is drawing. Only allow
+// during v-blank, so to update during that v-blank period it is not enough time to update whole
+// in that scenario, devs use dma
+// DMA destination address(0xFE00-0xFE9F) which is exacly 0xA0 byte
+void GameBoy::DoDMATransfer(byte address) {
+    // 0xFF46 has the source address and only store 8 bit
+    word targetAddr = address << 8; // shift by right 8 to form 16bit
+    for (int i = 0; i < 0xA0; i++) {
+        WriteMemory(0xFE00 + i, ReadMemory(targetAddr + i));
+    }
 }

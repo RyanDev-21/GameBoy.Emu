@@ -79,6 +79,8 @@ class GameBoy {
     void ServiceInterrupt(int interrupt);
     bool LCD_enabled();
     void SetLCD_status();
+    // DMA transfer for sprite ram
+    void DoDMATransfer(byte address);
 
   public:
     GameBoy();
