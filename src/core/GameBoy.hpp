@@ -8,6 +8,7 @@
 
 typedef unsigned char byte;
 typedef unsigned short word;
+typedef signed short signed_word;
 
 union Register {
     word reg;
@@ -81,6 +82,9 @@ class GameBoy {
     void SetLCD_status();
     // DMA transfer for sprite ram
     void DoDMATransfer(byte address);
+    // Render The background && sprites
+    void RenderTiles();
+    void RenderSprites();
 
   public:
     GameBoy();
@@ -90,6 +94,7 @@ class GameBoy {
     void UpdateTimers(int cycles);
     void Update();
     void UpdateGraphics(int cycles);
+    void DrawScanLine();
 };
 
 #endif

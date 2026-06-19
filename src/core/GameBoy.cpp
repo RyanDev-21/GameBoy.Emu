@@ -1,7 +1,6 @@
 #include "./GameBoy.hpp"
 #include <cstdio>
 #include <cstring>
-#include <exception>
 
 // Timer address
 #define TIMA 0xFF05
@@ -482,7 +481,7 @@ void GameBoy::SetLCD_status() {
     WriteMemory(0xFF41, status);
 }
 
-// GameBoy doesn't allow the sprite ram to update and delete when it is drawing. Only allow
+// GameBoy doesn't allow the sprite ram(OAM) to update and delete when it is drawing. Only allow
 // during v-blank, so to update during that v-blank period it is not enough time to update whole
 // in that scenario, devs use dma
 // DMA destination address(0xFE00-0xFE9F) which is exacly 0xA0 byte
@@ -491,5 +490,135 @@ void GameBoy::DoDMATransfer(byte address) {
     word targetAddr = address << 8; // shift by right 8 to form 16bit
     for (int i = 0; i < 0xA0; i++) {
         WriteMemory(0xFE00 + i, ReadMemory(targetAddr + i));
+    }
+}
+// the control register:0xFF40
+// bit 7=LCD display(on=1,off=0)
+// bit 6=Window tile map select(0=9800-9BFF,1=9C00-9FFF)
+// bit 5 - Window Display Enable (0=Off, 1=On)
+// bit 4 - BG & Window Tile Data Select (0=8800-97FF, 1=8000-8FFF)
+// bit 3 - BG Tile Map Display Select (0=9800-9BFF, 1=9C00-9FFF)
+// bit 2 - OBJ (Sprite) Size (0=8x8, 1=8x16)
+// bit 1 - OBJ (Sprite) Display Enable (0=Off, 1=On)
+// bit 0 - BG Display  (0=Off, 1=On)
+void GameBoy::DrawScanLine() {
+    byte status = ReadMemory(0xFF40);
+    if ((status & 1) != 0) { // check bit 0
+        // RenderTiles();
+    }
+
+    if ((status & 2) != 0) { // check bit 1
+        // RenderSprite();
+    }
+}
+
+// ScrollX and Y are background position
+// WindowX and y are window view position
+// WindowX has to subtract 7 in order to make the prefetch for ppu and prevent
+// empty data to draw but here, we are not doing that fifo implementation for ppu
+// and we just draw whatever has at 0
+void GameBoy::RenderTiles() {
+    word backgroundMem = 0;
+    word tileData = 0;
+    byte status = ReadMemory(0xFF40);
+    bool unsig = false;
+    bool usingWindow = false;
+    byte scrollY = ReadMemory(0xFF42);
+    byte scrollX = ReadMemory(0xFF43);
+    byte windowY = ReadMemory(0xFF4A);
+    byte windowX = ReadMemory(0xFF4B) - 7; // in order for the ppu to prefetch the data
+
+    // check the window bit
+    if ((status & 32) != 0) {                // check bit 5
+        if (windowY <= ReadMemory(0xFF44)) { // only if y is less than or equal to scanline
+            usingWindow = true;
+        }
+    }
+    // check the tile data select bit
+    if ((status & 16) != 0) { // check bit 4
+        tileData = 0x8000;
+        unsig = true;
+    } else {
+        tileData = 0x8800; // this memory region use signed byte
+    }
+
+    // check the window & background select bit
+    if (false == usingWindow) {
+        // which background memory region
+        if ((status & 8) != 0) { // check bit 3
+            backgroundMem = 0x9C00;
+        } else {
+            backgroundMem = 0x9800;
+        }
+    } else {
+        // whcih window memory region
+        if ((status & 64) != 0) { // check bit 6
+            backgroundMem = 0x9C00;
+        } else {
+            backgroundMem = 0x9800;
+        }
+    }
+
+    byte yPos = 0;
+
+    if (!usingWindow) {
+        // just plus the background position with scanline
+        yPos = scrollY + ReadMemory(0xFF44);
+    } else {
+        // we have to reset the yPos  as we need to get the correct index for tile data
+        yPos = ReadMemory(0xFF44) - windowY;
+    }
+    // each tile is 8x8
+    // so to get the tileRow index(current scanline pixel) we have to divide by  8 to yPos and
+    // multiply 32 to jump to corret index
+    word tileRow = (((byte)(yPos / 8)) * 32); // vertical tiles index
+    // draw the horizontal pixel
+    for (int pixel = 0; pixel < 160; pixel++) {
+        byte xPos = scrollX + pixel;
+        if (usingWindow) {
+            if (pixel >= windowX) {     // at drawing window pixel
+                xPos = pixel - windowX; // reset
+            }
+        }
+        // horizontal tile index
+        word tileCol = xPos / 8;
+        signed_word tileNum;
+        // plus all three index and get the actual tileAddress
+        word tileAddress = backgroundMem + tileRow + tileCol;
+        if (unsig) {
+            //  unsig
+            //  as the signed_word is 16 bit it can handle the unsigned_byte(8 bit)
+            tileNum = (byte)ReadMemory(tileAddress);
+        } else {
+            // sig
+            tileNum = (signed_word)ReadMemory(tileAddress);
+        }
+
+        word tileLocation = tileData;
+        if (unsig) {
+            tileLocation += (tileNum * 16);
+        } else {
+            // make the signed_word positive
+            // for example;
+            // signed_byte : -128 to 127
+            //  -128 means the starting address 0;
+            // so we get the actual address from 0x8800
+            tileLocation += (tileNum + 128) * 16;
+        }
+        // find the tile index of the current scanline to get the tileData
+        byte index = yPos % 8;
+        index *= 2; // as two byte are taken for color bit in memory
+        byte data1 = ReadMemory(tileLocation + index + 1);
+        byte data2 = ReadMemory(tileLocation + index + 2);
+
+        // pixel 0 correspond to data1 & data2 's bit 7
+        // pixel 1 bit 6 ...
+        byte colorBit = xPos % 8;
+        colorBit -= 7;
+        colorBit *= -1;
+        int colorNum = (data2 & (1 << colorBit));
+        colorNum <<= 1;
+        colorNum |= (data1 & (1 << colorBit));
+        // still need to implement color palette
     }
 }
