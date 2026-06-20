@@ -1,11 +1,18 @@
 #ifndef GAMEBOY_H
 #define GAMEBOY_H
 
+// For flag Status
 #define FLAG_Z 7;
 #define FLAG_N 6;
 #define FLAG_H 5;
 #define FLAG_C 4;
-
+// Color Palette
+enum COLOUR {
+    WHITE = 0,
+    LIGHT_GRAY = 1,
+    DARK_GRAY = 2,
+    BLACK = 3,
+};
 typedef unsigned char byte;
 typedef unsigned short word;
 typedef signed short signed_word;
@@ -21,7 +28,7 @@ union Register {
 class GameBoy {
   private:
     byte m_CartridgeMemory[0x200000];
-    byte m_screenData[160][144][3];
+    byte m_screenData[160][144][3]; //[Width,Height,Color]
     byte m_rom[0x10000];
     Register m_RegisterAF;
     Register m_RegisterBC;
@@ -85,6 +92,8 @@ class GameBoy {
     // Render The background && sprites
     void RenderTiles();
     void RenderSprites();
+    // Color Related Funcs
+    COLOUR ReadColor(int colorNum, word address);
 
   public:
     GameBoy();
