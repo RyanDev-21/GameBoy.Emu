@@ -508,7 +508,7 @@ void GameBoy::DrawScanLine() {
     }
 
     if ((status & 2) != 0) { // check bit 1
-        // RenderSprite();
+        RenderSprites();
     }
 }
 
