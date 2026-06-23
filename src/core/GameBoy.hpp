@@ -49,6 +49,8 @@ class GameBoy {
 
     // track the lower bits of 0xFF04
     byte m_DividerCounter;
+    // track the last joypad bits
+    byte m_joyPadState;
     // Timer Counter
     int m_TimerCounter;
 
@@ -94,6 +96,10 @@ class GameBoy {
     void RenderSprites();
     // Color Related Funcs
     COLOUR ReadColor(int colorNum, word address);
+    // Get Current joypad State
+    byte GetJoyPadState() const;
+    void KeyPressed(int key);
+    void KeyReleased(int key);
 
   public:
     GameBoy();
