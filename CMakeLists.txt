@@ -8,6 +8,7 @@ find_package(SDL2 REQUIRED CONFIG)
 
 add_executable(${PROJECT_NAME}
     src/main.cpp
+    src/core/GameBoy.cpp
 ) 
 
 target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2)

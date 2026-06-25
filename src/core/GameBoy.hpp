@@ -2,10 +2,10 @@
 #define GAMEBOY_H
 
 // For flag Status
-#define FLAG_Z 7;
-#define FLAG_N 6;
-#define FLAG_H 5;
-#define FLAG_C 4;
+#define FLAG_Z 7
+#define FLAG_N 6
+#define FLAG_H 5
+#define FLAG_C 4
 // Color Palette
 enum COLOUR {
     WHITE = 0,
@@ -100,6 +100,18 @@ class GameBoy {
     byte GetJoyPadState() const;
     void KeyPressed(int key);
     void KeyReleased(int key);
+
+    // Opcode Related stuff
+    void NextOpCodeExcute();
+    int ExcuteOpcode(byte opcode);
+    // Opcode translation stuff
+    void CPU_8bit_Load(byte &reg);
+    void CPU_8bit_ADD(byte &reg, byte toAdd, bool useImmediate, bool addCarry);
+    void CPU_8bit_SUB(byte &reg, byte toSub, bool useImmediate, bool borrowCarry);
+    void CPU_8bit_XOR(byte &reg, byte toXOR, bool useImmediate);
+    void CPU_8bit_AND(byte &reg, byte toAND, bool useImmediate);
+    void CPU_8bit_OR(byte &reg, byte toOR, bool useImmediate);
+    void CPU_JUMP_IMMEDIATE(bool condition, int flag, bool useCondition);
 
   public:
     GameBoy();

@@ -893,3 +893,173 @@ void GameBoy::KeyPressed(int key) {
 
 // just force that bit to 1
 void GameBoy::KeyReleased(int key) { m_joyPadState |= (1 << key); }
+
+void GameBoy::NextOpCodeExcute() {
+    int res = 0;
+    byte opcode = ReadMemory(m_programCounter);
+    m_programCounter++;
+    res = ExcuteOpcode(opcode);
+}
+
+int GameBoy::ExcuteOpcode(byte opcode) {
+    switch (opcode) {
+    case 0x06:
+        CPU_8bit_Load(m_RegisterBC.hi);
+        return 8;
+        break;
+    case 0x80:
+        CPU_8bit_ADD(m_RegisterAF.hi, m_RegisterBC.hi, false, false);
+        return 4;
+    case 0x90:
+        CPU_8bit_SUB(m_RegisterAF.hi, m_RegisterBC.hi, false, false);
+        return 4;
+    case 0xA7:
+        CPU_8bit_AND(m_RegisterAF.hi, m_RegisterAF.hi, false);
+        return 4;
+    case 0xAF:
+        CPU_8bit_XOR(m_RegisterAF.hi, m_RegisterAF.hi, false);
+        return 4;
+    case 0xB7:
+        CPU_8bit_OR(m_RegisterAF.hi, m_RegisterAF.hi, false);
+        return 4;
+    default:
+        return 0;
+    }
+}
+// Load nn to n
+// Load n value to registerBC(high)
+void GameBoy::CPU_8bit_Load(byte &reg) {
+    byte n = ReadMemory(m_programCounter);
+    m_programCounter++;
+    reg = n;
+}
+// Add n to A
+// n can be register or value
+void GameBoy::CPU_8bit_ADD(byte &reg, byte toAdd, bool useImmediate, bool addCarry) {
+    byte before = reg;
+    byte adding = 0;
+
+    // if  using immediate(which means no value from the register)
+    // we have to load from the catridge memory
+    if (useImmediate) {
+        byte n = ReadMemory(m_programCounter);
+        m_programCounter++;
+        adding += n;
+    } else {
+        adding = toAdd;
+    }
+    // if there is an carry flag turned on
+    if (addCarry) {
+        if ((m_RegisterAF.lo & (1 << FLAG_C)) != 0) {
+            adding++;
+        }
+    }
+    reg += adding;
+    // reset the flag
+    m_RegisterAF.lo = 0;
+    // check flag z
+    if (reg == 0) {
+        m_RegisterAF.lo |= 1 << FLAG_Z;
+    }
+    // only take the lower nibbles as it is half carry
+    byte hCheck = before & 0xF;
+    hCheck += adding & 0xF;
+    if (hCheck > 0xF) { // if gt 16
+        m_RegisterAF.lo |= 1 << FLAG_H;
+    }
+    // the reason we check before+adding is because if we chekc the reg it will already be in
+    // overflow state
+    if (before + adding > 0xFF) { // check full carry
+        m_RegisterAF.hi |= 1 << FLAG_C;
+    }
+}
+
+void GameBoy::CPU_8bit_SUB(byte &reg, byte toSub, bool useImmediate, bool borrowCarry) {
+    byte before = reg;
+    byte subbing = 0;
+
+    if (useImmediate) {
+        byte n = ReadMemory(m_programCounter);
+        m_programCounter++;
+        subbing = n;
+    } else {
+        subbing = toSub;
+    }
+    if (borrowCarry) {
+        if ((m_RegisterAF.lo & (1 << FLAG_C)) != 0) {
+            subbing += 1;
+        }
+    }
+    reg -= subbing;
+    m_RegisterAF.lo = 0;
+    if (reg == 0) {
+        m_RegisterAF.lo |= (1 << FLAG_Z);
+    }
+    // turn on the sub flag
+    m_RegisterAF.lo |= (1 << FLAG_N);
+
+    // half borrow check
+    if ((before & 0xF) < (subbing & 0xF)) {
+        m_RegisterAF.lo |= (1 << FLAG_H);
+    }
+    // full borrow check
+    if ((before & 0xFF) < (subbing & 0xFF)) {
+        m_RegisterAF.lo |= (1 << FLAG_C);
+    }
+}
+
+void GameBoy::CPU_8bit_XOR(byte &reg, byte toXOR, bool useImmediate) {
+    byte xoring = 0;
+    if (useImmediate) {
+        byte n = ReadMemory(m_programCounter);
+        m_programCounter++;
+        xoring = n;
+    } else {
+        xoring = toXOR;
+    }
+    reg = reg ^ xoring;
+    m_RegisterAF.lo = 0;
+    if (reg == 0) {
+        m_RegisterAF.lo |= (1 << FLAG_Z);
+    }
+};
+
+void GameBoy::CPU_8bit_AND(byte &reg, byte toAND, bool useImmediate) {
+    byte anding = 0;
+    if (useImmediate) {
+        byte n = ReadMemory(m_programCounter);
+        m_programCounter++;
+        anding = n;
+    } else {
+        anding = toAND;
+    }
+
+    reg &= anding;
+    m_RegisterAF.lo = 0;
+    // as the AND opeartion have the default H flag turned on
+    m_RegisterAF.lo |= (1 << FLAG_H);
+
+    if (reg == 0) {
+        m_RegisterAF.lo |= (1 << FLAG_Z);
+    }
+};
+
+void GameBoy::CPU_8bit_OR(byte &reg, byte toOR, bool useImmediate) {
+    byte oring = 0;
+    if (useImmediate) {
+        byte n = ReadMemory(m_programCounter);
+        m_programCounter++;
+        oring = n;
+    } else {
+        oring = toOR;
+    }
+    reg |= oring;
+    m_RegisterAF.lo = 0;
+    if (reg == 0) {
+        m_RegisterAF.lo |= (1 << FLAG_Z);
+    }
+};
+
+void GameBoy::CPU_JUMP_IMMEDIATE(bool condition, int flag, bool useCondition) {
+
+};
