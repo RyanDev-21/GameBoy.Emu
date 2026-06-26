@@ -60,9 +60,9 @@ class GameBoy {
     // Global Interrupt
     bool m_MasterInterrupt;
 
-    // Push to stack
+    // Stack Related
     void PushWordToStack(word data);
-
+    word PopWordFromStack();
     // Handle the switch bank
     void HandleBanking(word address, byte data);
     // enable RAM Banking
@@ -112,6 +112,10 @@ class GameBoy {
     void CPU_8bit_AND(byte &reg, byte toAND, bool useImmediate);
     void CPU_8bit_OR(byte &reg, byte toOR, bool useImmediate);
     void CPU_JUMP_IMMEDIATE(bool condition, int flag, bool useCondition);
+    void CPU_Call(bool condition, int flag, bool useCondition);
+    void CPU_RETURN(bool condition, int flag, bool useCondition);
+    // Helpers
+    word ReadWord();
 
   public:
     GameBoy();

@@ -378,6 +378,11 @@ void GameBoy::PushWordToStack(word data) {
     WriteMemory(m_stackPointer.lo, low);
 }
 
+word GameBoy::PopWordFromStack() {
+    m_stackPointer.reg -= 2;
+    return (m_stackPointer.hi << 8) | m_stackPointer.lo;
+}
+
 // Updae the scanline lcd
 // The GameBoy has 160x144
 // Scanline start from 0 to 153
@@ -922,6 +927,39 @@ int GameBoy::ExcuteOpcode(byte opcode) {
     case 0xB7:
         CPU_8bit_OR(m_RegisterAF.hi, m_RegisterAF.hi, false);
         return 4;
+    // JR cc,n
+    case 0x18:
+        CPU_JUMP_IMMEDIATE(false, 0, false);
+        return 8;
+    case 0x20:
+        CPU_JUMP_IMMEDIATE(false, FLAG_Z, true);
+        return 8;
+    case 0x28:
+        CPU_JUMP_IMMEDIATE(true, FLAG_Z, true);
+        return 8;
+    case 0x30:
+        CPU_JUMP_IMMEDIATE(false, FLAG_C, true);
+        return 8;
+    case 0x38:
+        CPU_JUMP_IMMEDIATE(true, FLAG_C, true);
+        return 8;
+    // CALL
+    case 0xCC:
+        CPU_Call(true, FLAG_Z, true);
+        return 12;
+    case 0xC4:
+        CPU_Call(false, FLAG_Z, true);
+        return 12;
+    // RETURN
+    case 0xC8:
+        CPU_RETURN(true, FLAG_Z, true);
+        return 8;
+    case 0xC0:
+        CPU_RETURN(false, FLAG_Z, true);
+        return 8;
+    case 0xD0:
+        CPU_RETURN(false, FLAG_C, true);
+        return 8;
     default:
         return 0;
     }
@@ -1061,5 +1099,45 @@ void GameBoy::CPU_8bit_OR(byte &reg, byte toOR, bool useImmediate) {
 };
 
 void GameBoy::CPU_JUMP_IMMEDIATE(bool condition, int flag, bool useCondition) {
-
+    byte n = ReadMemory(m_programCounter);
+    if (!useCondition) {
+        // if not using condition/jump straight
+        m_programCounter += n;
+    } else if ((((m_RegisterAF.lo & (1 << flag)) != 0) ? true : false) == condition) {
+        // check if the flag register is true with the condition
+        m_programCounter += n;
+    }
+    m_programCounter++;
 };
+
+void GameBoy::CPU_Call(bool condition, int flag, bool useCondition) {
+    byte word = ReadWord();
+    m_programCounter += 2;
+    if (!useCondition) {
+        PushWordToStack(word);
+        m_programCounter = word;
+        return;
+    }
+    if (((m_RegisterAF.lo & (1 << flag)) != 0 ? true : false) == condition) {
+        PushWordToStack(word);
+        m_programCounter = word;
+    }
+}
+
+word GameBoy::ReadWord() {
+    byte low = ReadMemory(m_programCounter);
+
+    byte high = ReadMemory(m_programCounter + 1);
+    return (high << 8) | low;
+}
+
+void GameBoy::CPU_RETURN(bool condition, int flag, bool useCondition) {
+    if (!useCondition) {
+        m_programCounter = PopWordFromStack();
+        return;
+    }
+
+    if ((((m_RegisterAF.lo & (1 << FLAG_Z)) != 0) ? true : false) == condition) {
+        m_programCounter = PopWordFromStack();
+    }
+}
