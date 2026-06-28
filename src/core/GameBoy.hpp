@@ -13,6 +13,15 @@ enum COLOUR {
     DARK_GRAY = 2,
     BLACK = 3,
 };
+
+// Some quirks to handle the opcode
+// Not Important
+enum OP {
+    NONE = 1,
+    INC = 2,
+    DEC = 3,
+};
+
 typedef unsigned char byte;
 typedef unsigned short word;
 typedef signed short signed_word;
@@ -106,6 +115,14 @@ class GameBoy {
     int ExcuteOpcode(byte opcode);
     // Opcode translation stuff
     void CPU_8bit_Load(byte &reg);
+    void CPU_8bit_Reg_Load(byte &reg1, byte &reg2);
+    void CPU_8bit_MemToReg(byte &reg1, Register reg2, OP operation);
+    void CPU_8bit_RegToMem(Register reg1, byte reg2, OP operation);
+    void CPU_8bit_ImmeToMem(Register reg1);
+    void CPU_16bit_MemToReg(byte &reg1);
+    void CPU_16bit_RegToMem(byte reg);
+    void CPU_8bit_RegToC(byte reg);
+    void CPU_8bit_CToReg(byte reg);
     void CPU_8bit_ADD(byte &reg, byte toAdd, bool useImmediate, bool addCarry);
     void CPU_8bit_SUB(byte &reg, byte toSub, bool useImmediate, bool borrowCarry);
     void CPU_8bit_XOR(byte &reg, byte toXOR, bool useImmediate);
