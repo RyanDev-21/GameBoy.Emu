@@ -926,6 +926,9 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0x06:
     CPU_8bit_Load(m_RegisterBC.hi);
     return 8;
+  case 0x08:
+    CPU_16bit_RegToImmeMem(m_stackPointer);
+    return 20;
   case 0x0A:
     CPU_8bit_MemToReg(m_RegisterAF.hi, m_RegisterBC, NONE);
     return 8;
@@ -1209,7 +1212,11 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0xC4:
     CPU_Call(false, FLAG_Z, true);
     return 12;
-  // RETURN
+  case 0xC5:
+    PushWordToStack(m_RegisterBC.reg);
+    return 16;
+
+    // RETURN
   case 0xC8:
     CPU_RETURN(true, FLAG_Z, true);
     return 8;
@@ -1219,12 +1226,19 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0xD0:
     CPU_RETURN(false, FLAG_C, true);
     return 8;
+  case 0xD5:
+    PushWordToStack(m_RegisterDE.reg);
+    return 16;
   case 0xE0:
     CPU_8bit_RegToImmeN0xFF00(m_RegisterAF.hi);
     return 12;
   case 0xE2:
     CPU_8bit_RegToC(m_RegisterAF.hi);
     return 8;
+  case 0xE5:
+    PushWordToStack(m_RegisterHL.reg);
+    return 16;
+
   case 0xEA:
     CPU_8bit_RegToImmeMem(m_RegisterAF.hi);
     return 12;
@@ -1234,13 +1248,18 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0xF2:
     CPU_8bit_CToReg(m_RegisterAF.hi);
     return 8;
+  case 0xF5:
+    PushWordToStack(m_RegisterAF.reg);
+    return 16;
+  case 0xF8:
+    CPU_16bit_SPNnToHL();
+    return 12;
   case 0xF9:
     CPU_16bit_Reg_Load(m_stackPointer, m_RegisterHL);
     return 8;
   case 0xFA:
     CPU_8bit_ImmeMemToReg(m_RegisterAF.hi);
     return 12;
-
   default:
     return 0;
   }
@@ -1507,4 +1526,25 @@ void GameBoy::CPU_16bit_MemToReg(Register &reg) {
   word nn = ReadWord();
   m_programCounter += 2;
   reg.reg = nn;
+};
+
+void GameBoy::CPU_16bit_SPNnToHL() {
+  byte n = ReadMemory(m_programCounter);
+  m_programCounter++;
+  m_RegisterAF.lo = 0;
+  signed_word signed_n = (signed_word)(signed_byte)n;
+  m_RegisterHL.reg = m_stackPointer.reg + signed_n;
+  if (((m_stackPointer.lo & 0xF) + (signed_n & 0xF) > 0xF)) {
+    m_RegisterAF.lo |= (1 << FLAG_H);
+  }
+  if (((m_stackPointer.lo & 0xFF) + (signed_n & 0xFF) > 0xFF)) {
+    m_RegisterAF.lo |= (1 << FLAG_C);
+  }
+}
+
+void GameBoy::CPU_16bit_RegToImmeMem(Register reg) {
+  word addr = ReadWord();
+  m_programCounter += 2;
+  WriteMemory(addr, reg.lo);
+  WriteMemory(addr + 1, reg.hi);
 };

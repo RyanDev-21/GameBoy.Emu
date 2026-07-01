@@ -25,7 +25,7 @@ enum OP {
 typedef unsigned char byte;
 typedef unsigned short word;
 typedef signed short signed_word;
-
+typedef unsigned char signed_byte;
 union Register {
   word reg;
   struct {
@@ -135,7 +135,8 @@ private:
   void CPU_8bit_ImmeN0xFF00ToReg(byte &reg);
   void CPU_16bit_MemToReg(Register &reg);
   void CPU_16bit_Reg_Load(Register &reg1, Register &reg2);
-
+  void CPU_16bit_SPNnToHL();
+  void CPU_16bit_RegToImmeMem(Register reg);
   // Helpers
   word ReadWord();
 
