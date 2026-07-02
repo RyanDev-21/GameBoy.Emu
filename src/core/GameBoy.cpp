@@ -381,8 +381,11 @@ void GameBoy::PushWordToStack(word data) {
 }
 
 word GameBoy::PopWordFromStack() {
-  m_stackPointer.reg -= 2;
-  return (m_stackPointer.hi << 8) | m_stackPointer.lo;
+  byte high = ReadMemory(m_stackPointer.reg);
+  m_stackPointer.reg++;
+  byte low = ReadMemory(m_stackPointer.reg);
+  m_stackPointer.reg++;
+  return (high << 8) | low;
 }
 
 // Updae the scanline lcd
@@ -1176,15 +1179,196 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0x80:
     CPU_8bit_ADD(m_RegisterAF.hi, m_RegisterBC.hi, false, false);
     return 4;
+  case 0x81:
+    CPU_8bit_ADD(m_RegisterAF.hi, m_RegisterBC.lo, false, false);
+    return 4;
+  case 0x82:
+    CPU_8bit_ADD(m_RegisterAF.hi, m_RegisterDE.hi, false, false);
+    return 4;
+  case 0x83:
+    CPU_8bit_ADD(m_RegisterAF.hi, m_RegisterDE.lo, false, false);
+    return 4;
+  case 0x84:
+    CPU_8bit_ADD(m_RegisterAF.hi, m_RegisterHL.hi, false, false);
+    return 4;
+  case 0x85:
+    CPU_8bit_ADD(m_RegisterAF.hi, m_RegisterHL.lo, false, false);
+    return 4;
+  case 0x86: {
+    word nn = ReadMemory(m_RegisterHL.reg);
+    CPU_8bit_ADD(m_RegisterAF.hi, nn, false, false);
+    return 8;
+  }
+  case 0x87:
+    CPU_8bit_ADD(m_RegisterAF.hi, m_RegisterAF.hi, false, false);
+    return 4;
+  case 0x88:
+    CPU_8bit_ADD(m_RegisterAF.hi, m_RegisterBC.hi, false, true);
+    return 4;
+  case 0x89:
+    CPU_8bit_ADD(m_RegisterAF.hi, m_RegisterBC.lo, false, true);
+    return 4;
+  case 0x8A:
+    CPU_8bit_ADD(m_RegisterAF.hi, m_RegisterDE.hi, false, true);
+    return 4;
+  case 0x8B:
+    CPU_8bit_ADD(m_RegisterAF.hi, m_RegisterDE.lo, false, true);
+    return 4;
+  case 0x8C:
+    CPU_8bit_ADD(m_RegisterAF.hi, m_RegisterHL.hi, false, true);
+    return 4;
+  case 0x8D:
+    CPU_8bit_ADD(m_RegisterAF.hi, m_RegisterHL.lo, false, true);
+    return 4;
+  case 0x8E: {
+    word nn = ReadMemory(m_RegisterHL.reg);
+    CPU_8bit_ADD(m_RegisterAF.hi, nn, false, true);
+    return 8;
+  }
+
+  case 0x8F:
+    CPU_8bit_ADD(m_RegisterAF.hi, m_RegisterAF.hi, false, true);
+    return 4;
   case 0x90:
     CPU_8bit_SUB(m_RegisterAF.hi, m_RegisterBC.hi, false, false);
     return 4;
+  case 0x91:
+    CPU_8bit_SUB(m_RegisterAF.hi, m_RegisterBC.lo, false, false);
+    return 4;
+  case 0x92:
+    CPU_8bit_SUB(m_RegisterAF.hi, m_RegisterDE.hi, false, false);
+    return 4;
+  case 0x93:
+    CPU_8bit_SUB(m_RegisterAF.hi, m_RegisterDE.lo, false, false);
+    return 4;
+  case 0x94:
+    CPU_8bit_SUB(m_RegisterAF.hi, m_RegisterHL.hi, false, false);
+    return 4;
+  case 0x95:
+    CPU_8bit_SUB(m_RegisterAF.hi, m_RegisterHL.lo, false, false);
+    return 4;
+  case 0x96: {
+    byte nn = ReadMemory(m_RegisterHL.reg);
+    CPU_8bit_SUB(m_RegisterAF.hi, nn, false, false);
+    return 8;
+  }
+  case 0x97:
+    CPU_8bit_SUB(m_RegisterAF.hi, m_RegisterAF.hi, false, false);
+    return 4;
+
+  // SBC A,r (subtract with carry)
+  case 0x98:
+    CPU_8bit_SUB(m_RegisterAF.hi, m_RegisterBC.hi, false, true);
+    return 4;
+  case 0x99:
+    CPU_8bit_SUB(m_RegisterAF.hi, m_RegisterBC.lo, false, true);
+    return 4;
+  case 0x9A:
+    CPU_8bit_SUB(m_RegisterAF.hi, m_RegisterDE.hi, false, true);
+    return 4;
+  case 0x9B:
+    CPU_8bit_SUB(m_RegisterAF.hi, m_RegisterDE.lo, false, true);
+    return 4;
+  case 0x9C:
+    CPU_8bit_SUB(m_RegisterAF.hi, m_RegisterHL.hi, false, true);
+    return 4;
+  case 0x9D:
+    CPU_8bit_SUB(m_RegisterAF.hi, m_RegisterHL.lo, false, true);
+    return 4;
+  case 0x9E: {
+    byte nn = ReadMemory(m_RegisterHL.reg);
+    CPU_8bit_SUB(m_RegisterAF.hi, nn, false, true);
+    return 8;
+  }
+  case 0x9F:
+    CPU_8bit_SUB(m_RegisterAF.hi, m_RegisterAF.hi, false, true);
+    return 4;
+
+  // AND A,r
+  case 0xA0:
+    CPU_8bit_AND(m_RegisterAF.hi, m_RegisterBC.hi, false);
+    return 4;
+  case 0xA1:
+    CPU_8bit_AND(m_RegisterAF.hi, m_RegisterBC.lo, false);
+    return 4;
+  case 0xA2:
+    CPU_8bit_AND(m_RegisterAF.hi, m_RegisterDE.hi, false);
+    return 4;
+  case 0xA3:
+    CPU_8bit_AND(m_RegisterAF.hi, m_RegisterDE.lo, false);
+    return 4;
+  case 0xA4:
+    CPU_8bit_AND(m_RegisterAF.hi, m_RegisterHL.hi, false);
+    return 4;
+  case 0xA5:
+    CPU_8bit_AND(m_RegisterAF.hi, m_RegisterHL.lo, false);
+    return 4;
+  case 0xA6: {
+    byte nn = ReadMemory(m_RegisterHL.reg);
+    CPU_8bit_AND(m_RegisterAF.hi, nn, false);
+    return 8;
+  }
   case 0xA7:
     CPU_8bit_AND(m_RegisterAF.hi, m_RegisterAF.hi, false);
     return 4;
+
+  // XOR A,r
+  case 0xA8:
+    CPU_8bit_XOR(m_RegisterAF.hi, m_RegisterBC.hi, false);
+    return 4;
+  case 0xA9:
+    CPU_8bit_XOR(m_RegisterAF.hi, m_RegisterBC.lo, false);
+    return 4;
+  case 0xAA:
+    CPU_8bit_XOR(m_RegisterAF.hi, m_RegisterDE.hi, false);
+    return 4;
+  case 0xAB:
+    CPU_8bit_XOR(m_RegisterAF.hi, m_RegisterDE.lo, false);
+    return 4;
+  case 0xAC:
+    CPU_8bit_XOR(m_RegisterAF.hi, m_RegisterHL.hi, false);
+    return 4;
+  case 0xAD:
+    CPU_8bit_XOR(m_RegisterAF.hi, m_RegisterHL.lo, false);
+    return 4;
+  case 0xAE: {
+    byte nn = ReadMemory(m_RegisterHL.reg);
+    CPU_8bit_XOR(m_RegisterAF.hi, nn, false);
+    return 8;
+  }
   case 0xAF:
     CPU_8bit_XOR(m_RegisterAF.hi, m_RegisterAF.hi, false);
     return 4;
+
+  // XOR A,n (immediate)
+  case 0xEE:
+    CPU_8bit_XOR(m_RegisterAF.hi, 0, true);
+    return 8;
+
+  // OR A,r
+  case 0xB0:
+    CPU_8bit_OR(m_RegisterAF.hi, m_RegisterBC.hi, false);
+    return 4;
+  case 0xB1:
+    CPU_8bit_OR(m_RegisterAF.hi, m_RegisterBC.lo, false);
+    return 4;
+  case 0xB2:
+    CPU_8bit_OR(m_RegisterAF.hi, m_RegisterDE.hi, false);
+    return 4;
+  case 0xB3:
+    CPU_8bit_OR(m_RegisterAF.hi, m_RegisterDE.lo, false);
+    return 4;
+  case 0xB4:
+    CPU_8bit_OR(m_RegisterAF.hi, m_RegisterHL.hi, false);
+    return 4;
+  case 0xB5:
+    CPU_8bit_OR(m_RegisterAF.hi, m_RegisterHL.lo, false);
+    return 4;
+  case 0xB6: {
+    byte nn = ReadMemory(m_RegisterHL.reg);
+    CPU_8bit_OR(m_RegisterAF.hi, nn, false);
+    return 8;
+  }
   case 0xB7:
     CPU_8bit_OR(m_RegisterAF.hi, m_RegisterAF.hi, false);
     return 4;
@@ -1205,9 +1389,9 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0x38:
     CPU_JUMP_IMMEDIATE(true, FLAG_C, true);
     return 8;
-  // CALL
-  case 0xCC:
-    CPU_Call(true, FLAG_Z, true);
+    // CALL
+  case 0xC1:
+    CPU_16bit_PopToReg(m_RegisterBC);
     return 12;
   case 0xC4:
     CPU_Call(false, FLAG_Z, true);
@@ -1215,7 +1399,15 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0xC5:
     PushWordToStack(m_RegisterBC.reg);
     return 16;
-
+  case 0xC6:
+    CPU_8bit_ADD(m_RegisterAF.hi, 0, true, false);
+    return 8;
+  case 0xCE:
+    CPU_8bit_ADD(m_RegisterAF.hi, 0, true, true);
+    return 8;
+  case 0xCC:
+    CPU_Call(true, FLAG_Z, true);
+    return 12;
     // RETURN
   case 0xC8:
     CPU_RETURN(true, FLAG_Z, true);
@@ -1226,11 +1418,17 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0xD0:
     CPU_RETURN(false, FLAG_C, true);
     return 8;
+  case 0xD1:
+    CPU_16bit_PopToReg(m_RegisterDE);
+    return 12;
   case 0xD5:
     PushWordToStack(m_RegisterDE.reg);
     return 16;
   case 0xE0:
     CPU_8bit_RegToImmeN0xFF00(m_RegisterAF.hi);
+    return 12;
+  case 0xE1:
+    CPU_16bit_PopToReg(m_RegisterHL);
     return 12;
   case 0xE2:
     CPU_8bit_RegToC(m_RegisterAF.hi);
@@ -1238,12 +1436,14 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0xE5:
     PushWordToStack(m_RegisterHL.reg);
     return 16;
-
   case 0xEA:
     CPU_8bit_RegToImmeMem(m_RegisterAF.hi);
     return 12;
   case 0xF0:
     CPU_8bit_ImmeN0xFF00ToReg(m_RegisterAF.hi);
+    return 12;
+  case 0xF1:
+    CPU_16bit_PopToReg(m_RegisterAF);
     return 12;
   case 0xF2:
     CPU_8bit_CToReg(m_RegisterAF.hi);
@@ -1527,6 +1727,11 @@ void GameBoy::CPU_16bit_MemToReg(Register &reg) {
   m_programCounter += 2;
   reg.reg = nn;
 };
+
+void GameBoy::CPU_16bit_PopToReg(Register &reg) {
+  word nn = PopWordFromStack();
+  reg.reg = nn;
+}
 
 void GameBoy::CPU_16bit_SPNnToHL() {
   byte n = ReadMemory(m_programCounter);

@@ -137,6 +137,7 @@ private:
   void CPU_16bit_Reg_Load(Register &reg1, Register &reg2);
   void CPU_16bit_SPNnToHL();
   void CPU_16bit_RegToImmeMem(Register reg);
+  void CPU_16bit_PopToReg(Register &reg);
   // Helpers
   word ReadWord();
 
