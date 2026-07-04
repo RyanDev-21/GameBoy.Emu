@@ -138,6 +138,11 @@ private:
   void CPU_16bit_SPNnToHL();
   void CPU_16bit_RegToImmeMem(Register reg);
   void CPU_16bit_PopToReg(Register &reg);
+  void CPU_8bit_CP(byte reg, byte reg1);
+  void CPU_8bit_SimOp(byte &reg, OP operation);
+  void CPU_16bit_ADD(Register &reg, Register reg2, bool z_flag);
+  void CPU_16bit_NToSP();
+  void CPU_8bit_SWAP(byte &reg);
   // Helpers
   word ReadWord();
 
