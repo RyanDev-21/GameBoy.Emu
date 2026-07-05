@@ -17,7 +17,7 @@ GameBoy::GameBoy()
       m_programCounter(0x100), m_RegisterAF{.reg = 0x01B0},
       m_RegisterBC{.reg = 0x0013}, m_RegisterDE{.reg = 0x00D8},
       m_RegisterHL{.reg = 0x014D}, current_romBank(1), current_ramBank(0),
-      m_MBU1(false), m_MBU2(false), m_enableRAM(false) {
+      m_MBU1(false), m_MBU2(false), m_enableRAM(false), m_EIpending(0) {
   // allocate stack pointer
   m_stackPointer.reg = 0xFFFE;
   // init the ramBanks
@@ -916,10 +916,17 @@ void GameBoy::NextOpCodeExcute() {
   byte opcode = ReadMemory(m_programCounter);
   m_programCounter++;
   res = ExcuteOpcode(opcode);
+
+  if (m_EIpending) {
+    m_EIpending = false;
+    m_MasterInterrupt = true;
+  }
 }
 
 int GameBoy::ExcuteOpcode(byte opcode) {
   switch (opcode) {
+  case 0x00:
+    break;
   case 0x01:
     CPU_16bit_MemToReg(m_RegisterBC);
     return 12;
@@ -938,6 +945,9 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0x06:
     CPU_8bit_Load(m_RegisterBC.hi);
     return 8;
+  case 0x07:
+    CPU_8bit_RLC(m_RegisterAF.hi);
+    return 4;
   case 0x08:
     CPU_16bit_RegToImmeMem(m_stackPointer);
     return 20;
@@ -959,6 +969,12 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0x0E:
     CPU_8bit_Load(m_RegisterBC.lo);
     return 8;
+  case 0x0F:
+    CPU_8bit_RRC(m_RegisterAF.hi);
+    return 4;
+  case 0x10:
+    m_programCounter++;
+    return 4;
   case 0x11:
     CPU_16bit_MemToReg(m_RegisterDE);
     return 12;
@@ -977,6 +993,9 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0x16:
     CPU_8bit_Load(m_RegisterDE.hi);
     return 8;
+  case 0x17:
+    CPU_8bit_RL(m_RegisterAF.hi);
+    return 4;
   case 0x1A:
     CPU_8bit_MemToReg(m_RegisterAF.hi, m_RegisterDE, NONE);
     return 8;
@@ -992,6 +1011,9 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0x1E:
     CPU_8bit_Load(m_RegisterDE.lo);
     return 8;
+  case 0x1F:
+    CPU_8bit_RR(m_RegisterAF.hi);
+    return 4;
   case 0x19:
     CPU_16bit_ADD(m_RegisterHL, m_RegisterDE, true);
     return 8;
@@ -1013,6 +1035,9 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0x26:
     CPU_8bit_Load(m_RegisterHL.hi);
     return 8;
+  case 0x27:
+    CPU_8bit_DAA();
+    return 27;
   case 0x2A:
     CPU_8bit_MemToReg(m_RegisterAF.hi, m_RegisterHL, INC);
     return 8;
@@ -1028,6 +1053,10 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0x2E:
     CPU_8bit_Load(m_RegisterHL.lo);
     return 8;
+  case 0x2F:
+    m_RegisterAF.hi ^= 0xFF;
+    m_RegisterAF.lo |= (1 << FLAG_N) | (1 << FLAG_H);
+    return 4;
   case 0x29:
     CPU_16bit_ADD(m_RegisterHL, m_RegisterHL, true);
     return 8;
@@ -1515,6 +1544,11 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0x38:
     CPU_JUMP_IMMEDIATE(true, FLAG_C, true);
     return 8;
+  case 0x3F:
+    m_RegisterAF.lo &= ~(1 << FLAG_N);
+    m_RegisterAF.lo &= ~(1 << FLAG_H);
+    m_RegisterAF.lo ^= (1 << FLAG_C);
+    return 4;
     // CALL
   case 0xC1:
     CPU_16bit_PopToReg(m_RegisterBC);
@@ -1538,6 +1572,168 @@ int GameBoy::ExcuteOpcode(byte opcode) {
     byte cb_opcode = ReadMemory(m_programCounter);
     m_programCounter++;
     switch (cb_opcode) {
+    case 0x00:
+      CPU_8bit_RLC(m_RegisterBC.hi);
+      return 8;
+    case 0x01:
+      CPU_8bit_RLC(m_RegisterBC.lo);
+      return 8;
+    case 0x02:
+      CPU_8bit_RLC(m_RegisterDE.hi);
+      return 8;
+    case 0x03:
+      CPU_8bit_RLC(m_RegisterDE.lo);
+      return 8;
+    case 0x04:
+      CPU_8bit_RLC(m_RegisterHL.hi);
+      return 8;
+    case 0x05:
+      CPU_8bit_RLC(m_RegisterHL.lo);
+      return 8;
+    case 0x06: {
+      byte val = ReadMemory(m_RegisterHL.reg);
+      CPU_8bit_RLC(val);
+      WriteMemory(m_RegisterHL.reg, val);
+      return 16;
+    }
+    case 0x07:
+      CPU_8bit_RLC(m_RegisterAF.hi);
+      return 8;
+    case 0x08:
+      CPU_8bit_RRC(m_RegisterBC.hi);
+      return 8;
+    case 0x09:
+      CPU_8bit_RRC(m_RegisterBC.lo);
+      return 8;
+    case 0x0A:
+      CPU_8bit_RRC(m_RegisterDE.hi);
+      return 8;
+    case 0x0B:
+      CPU_8bit_RRC(m_RegisterDE.lo);
+      return 8;
+    case 0x0C:
+      CPU_8bit_RRC(m_RegisterHL.hi);
+      return 8;
+    case 0x0D:
+      CPU_8bit_RRC(m_RegisterHL.lo);
+      return 8;
+    case 0x0E: {
+      byte val = ReadMemory(m_RegisterHL.reg);
+      CPU_8bit_RRC(val);
+      WriteMemory(m_RegisterHL.reg, val);
+      return 16;
+    }
+    case 0x0F:
+      CPU_8bit_RRC(m_RegisterAF.hi);
+      return 8;
+    case 0x10:
+      CPU_8bit_RL(m_RegisterBC.hi);
+      return 8;
+    case 0x11:
+      CPU_8bit_RL(m_RegisterBC.lo);
+      return 8;
+    case 0x12:
+      CPU_8bit_RL(m_RegisterDE.hi);
+      return 8;
+    case 0x13:
+      CPU_8bit_RL(m_RegisterDE.lo);
+      return 8;
+    case 0x14:
+      CPU_8bit_RL(m_RegisterHL.hi);
+      return 8;
+    case 0x15:
+      CPU_8bit_RL(m_RegisterHL.lo);
+      return 8;
+    case 0x16: {
+      byte val = ReadMemory(m_RegisterHL.reg);
+      CPU_8bit_RL(val);
+      WriteMemory(m_RegisterHL.reg, val);
+      return 16;
+    }
+    case 0x17:
+      CPU_8bit_RL(m_RegisterAF.hi);
+      return 8;
+    case 0x18:
+      CPU_8bit_RR(m_RegisterBC.hi);
+      return 8;
+    case 0x19:
+      CPU_8bit_RR(m_RegisterBC.lo);
+      return 8;
+    case 0x1A:
+      CPU_8bit_RR(m_RegisterDE.hi);
+      return 8;
+    case 0x1B:
+      CPU_8bit_RR(m_RegisterDE.lo);
+      return 8;
+    case 0x1C:
+      CPU_8bit_RR(m_RegisterHL.hi);
+      return 8;
+    case 0x1D:
+      CPU_8bit_RR(m_RegisterHL.lo);
+      return 8;
+    case 0x1E: {
+      byte val = ReadMemory(m_RegisterHL.reg);
+      CPU_8bit_RR(val);
+      WriteMemory(m_RegisterHL.reg, val);
+      return 16;
+    }
+    case 0x1F:
+      CPU_8bit_RR(m_RegisterAF.hi);
+      return 8;
+    case 0x20:
+      CPU_8bit_SLA(m_RegisterBC.hi);
+      return 8;
+    case 0x21:
+      CPU_8bit_SLA(m_RegisterBC.lo);
+      return 8;
+    case 0x22:
+      CPU_8bit_SLA(m_RegisterDE.hi);
+      return 8;
+    case 0x23:
+      CPU_8bit_SLA(m_RegisterDE.lo);
+      return 8;
+    case 0x24:
+      CPU_8bit_SLA(m_RegisterHL.hi);
+      return 8;
+    case 0x25:
+      CPU_8bit_SLA(m_RegisterHL.lo);
+      return 8;
+    case 0x26: {
+      byte val = ReadMemory(m_RegisterHL.reg);
+      CPU_8bit_SLA(val);
+      WriteMemory(m_RegisterHL.reg, val);
+      return 16;
+    }
+    case 0x27:
+      CPU_8bit_SLA(m_RegisterAF.hi);
+      return 8;
+    case 0x28:
+      CPU_8bit_SRA(m_RegisterBC.hi);
+      return 8;
+    case 0x29:
+      CPU_8bit_SRA(m_RegisterBC.lo);
+      return 8;
+    case 0x2A:
+      CPU_8bit_SRA(m_RegisterDE.hi);
+      return 8;
+    case 0x2B:
+      CPU_8bit_SRA(m_RegisterDE.lo);
+      return 8;
+    case 0x2C:
+      CPU_8bit_SRA(m_RegisterHL.hi);
+      return 8;
+    case 0x2D:
+      CPU_8bit_SRA(m_RegisterHL.lo);
+      return 8;
+    case 0x2E: {
+      byte val = ReadMemory(m_RegisterHL.reg);
+      CPU_8bit_SRA(val);
+      WriteMemory(m_RegisterHL.reg, val);
+      return 16;
+    }
+    case 0x2F:
+      CPU_8bit_SRA(m_RegisterAF.hi);
+      return 8;
     case 0x30:
       CPU_8bit_SWAP(m_RegisterBC.hi);
       return 8;
@@ -1565,10 +1761,42 @@ int GameBoy::ExcuteOpcode(byte opcode) {
     case 0x37:
       CPU_8bit_SWAP(m_RegisterAF.hi);
       return 8;
+    case 0x38:
+      CPU_8bit_SRL(m_RegisterBC.hi);
+      return 8;
+    case 0x39:
+      CPU_8bit_SRL(m_RegisterBC.lo);
+      return 8;
+    case 0x3A:
+      CPU_8bit_SRL(m_RegisterDE.hi);
+      return 8;
+    case 0x3B:
+      CPU_8bit_SRL(m_RegisterDE.lo);
+      return 8;
+    case 0x3C:
+      CPU_8bit_SRL(m_RegisterHL.hi);
+      return 8;
+    case 0x3D:
+      CPU_8bit_SRL(m_RegisterHL.lo);
+      return 8;
+    case 0x3E: {
+      byte val = ReadMemory(m_RegisterHL.reg);
+      CPU_8bit_SRL(val);
+      WriteMemory(m_RegisterHL.reg, val);
+      return 16;
+    }
+    case 0x3F:
+      CPU_8bit_SRL(m_RegisterAF.hi);
+      return 8;
     default:
       return 0;
     }
   }
+  case 0x37:
+    m_RegisterAF.lo &= ~(1 << FLAG_N);
+    m_RegisterAF.lo &= ~(1 << FLAG_H);
+    m_RegisterAF.lo |= (1 << FLAG_C);
+    return 4;
     // RETURN
   case 0xC8:
     CPU_RETURN(true, FLAG_Z, true);
@@ -1613,6 +1841,10 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0xF2:
     CPU_8bit_CToReg(m_RegisterAF.hi);
     return 8;
+  case 0xF3:
+    m_MasterInterrupt = false;
+    m_EIpending = false;
+    return 4;
   case 0xF5:
     PushWordToStack(m_RegisterAF.reg);
     return 16;
@@ -1625,6 +1857,9 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0xFA:
     CPU_8bit_ImmeMemToReg(m_RegisterAF.hi);
     return 12;
+  case 0xFB:
+    m_EIpending = true;
+    return 4;
   default:
     return 0;
   }
@@ -1680,7 +1915,7 @@ void GameBoy::CPU_8bit_ADD(byte &reg, byte toAdd, bool useImmediate,
   // the reason we check before+adding is because if we chekc the reg it will
   // already be in overflow state
   if (before + adding > 0xFF) { // check full carry
-    m_RegisterAF.hi |= 1 << FLAG_C;
+    m_RegisterAF.lo |= 1 << FLAG_C;
   }
 }
 
@@ -1827,19 +2062,21 @@ void GameBoy::CPU_8bit_MemToReg(byte &reg1, Register reg2, OP operation) {
     break;
   case INC:
     m_RegisterHL.reg++;
+    break;
   case DEC:
     m_RegisterHL.reg--;
   }
 };
 
 void GameBoy::CPU_8bit_RegToMem(Register reg1, byte reg2, OP operation) {
-  word addr = (reg1.hi << 8) | reg2;
+  word addr = (reg1.hi << 8) | reg1.lo;
   WriteMemory(addr, reg2);
   switch (operation) {
   case NONE:
     break;
   case INC:
     m_RegisterHL.reg++;
+    break;
   case DEC:
     m_RegisterHL.reg--;
   }
@@ -1882,7 +2119,7 @@ void GameBoy::CPU_8bit_ImmeN0xFF00ToReg(byte &reg) {
   reg = data;
 }
 
-void GameBoy::CPU_8bit_CToReg(byte reg) {
+void GameBoy::CPU_8bit_CToReg(byte &reg) {
   word data = ReadMemory(0xFF00 | m_RegisterBC.lo);
   reg = data;
 }
@@ -1932,7 +2169,7 @@ void GameBoy::CPU_8bit_CP(byte reg, byte reg1) {
     m_RegisterAF.lo |= (1 << FLAG_H);
   }
 }
-void CPU_8bit_INC(byte &reg, byte &flagReg) {
+void GameBoy::CPU_8bit_INC(byte &reg, byte &flagReg) {
   reg++;
   flagReg &= (1 << FLAG_C);
   if (reg == 0) {
@@ -1943,7 +2180,7 @@ void CPU_8bit_INC(byte &reg, byte &flagReg) {
   }
 }
 
-void CPU_8bit_DEC(byte &reg, byte &flagReg) {
+void GameBoy::CPU_8bit_DEC(byte &reg, byte &flagReg) {
   reg--;
   flagReg &= (1 << FLAG_C);
   flagReg |= (1 << FLAG_N);
@@ -2003,5 +2240,117 @@ void GameBoy::CPU_8bit_SWAP(byte &reg) {
   m_RegisterAF.lo = 0;
   if (reg == 0) {
     m_RegisterAF.lo |= (1 << FLAG_Z);
+  }
+}
+// This function turn the hex to decimal so that the game can do the correct
+// binary decimal representation of score and stuff
+void GameBoy::CPU_8bit_DAA() {
+  byte &a = m_RegisterAF.hi;
+  byte &f = m_RegisterAF.lo;
+
+  if ((f & (1 << FLAG_N)) == 0) {
+    if ((f & (1 << FLAG_C)) != 0 || a > 0x99) {
+      a += 0x60;
+      f |= (1 << FLAG_C);
+    } else {
+      f &= ~(1 << FLAG_C);
+    }
+    if ((f & (1 << FLAG_H)) != 0 || (a & 0x0F) > 0x09) {
+      a += 0x06;
+    }
+  } else {
+    if ((f & (1 << FLAG_C)) != 0) {
+      a -= 0x60;
+    }
+    if ((f & (1 << FLAG_H)) != 0) {
+      a -= 0x06;
+    }
+  }
+
+  f &= ~(1 << FLAG_H);
+  f &= ~(1 << FLAG_Z);
+  if (a == 0) {
+    f |= (1 << FLAG_Z);
+  }
+}
+
+void GameBoy::CPU_8bit_RLC(byte &reg) {
+  byte val = (reg >> 7) & 1;
+  reg = (reg << 1) | val;
+  m_RegisterAF.lo = 0;
+  if (reg == 0) {
+    m_RegisterAF.lo |= (1 << FLAG_Z);
+  }
+  m_RegisterAF.lo |= (val << FLAG_C);
+}
+
+void GameBoy::CPU_8bit_RL(byte &reg) {
+  byte oldC = (m_RegisterAF.lo >> FLAG_C) & 1;
+  byte old_bit7 = (reg >> 7) & 1;
+  reg = (reg << 1) | oldC;
+  m_RegisterAF.lo = 0;
+  if (reg == 0) {
+    m_RegisterAF.lo |= (1 << FLAG_Z);
+  }
+  if (old_bit7) {
+    m_RegisterAF.lo |= (1 << FLAG_C);
+  }
+}
+
+void GameBoy::CPU_8bit_RRC(byte &reg) {
+  byte val = reg & 1;
+  reg = (reg >> 1) | (val << 7);
+  m_RegisterAF.lo = 0;
+  if (reg == 0) {
+    m_RegisterAF.lo |= (1 << FLAG_Z);
+  }
+  m_RegisterAF.lo |= (val << FLAG_C);
+}
+
+void GameBoy::CPU_8bit_RR(byte &reg) {
+  byte oldC = (m_RegisterAF.lo >> FLAG_C) & 1;
+  byte old_bit0 = reg & 1;
+  reg = (reg >> 1) | (oldC << 7);
+  m_RegisterAF.lo = 0;
+  if (reg == 0) {
+    m_RegisterAF.lo |= (1 << FLAG_Z);
+  }
+  if (old_bit0) {
+    m_RegisterAF.lo |= (1 << FLAG_C);
+  }
+}
+
+void GameBoy::CPU_8bit_SLA(byte &reg) {
+  byte old_bit7 = (reg >> 7) & 1;
+  reg = reg << 1;
+  m_RegisterAF.lo = 0;
+  if (reg == 0) {
+    m_RegisterAF.lo |= (1 << FLAG_Z);
+  }
+  m_RegisterAF.lo |= (old_bit7 << FLAG_C);
+}
+
+void GameBoy::CPU_8bit_SRA(byte &reg) {
+  byte old_bit7 = (reg >> 7) & 1;
+  byte old_bit0 = reg & 1;
+  reg = (reg >> 1) | (old_bit7 << 7);
+  m_RegisterAF.lo = 0;
+  if (reg == 0) {
+    m_RegisterAF.lo |= (1 << FLAG_Z);
+  }
+  if (old_bit0) {
+    m_RegisterAF.lo |= (1 << FLAG_C);
+  }
+};
+
+void GameBoy::CPU_8bit_SRL(byte &reg) {
+  byte old_bit0 = reg & 1;
+  reg = reg >> 1;
+  m_RegisterAF.lo = 0;
+  if (reg == 0) {
+    m_RegisterAF.lo |= (1 << FLAG_Z);
+  }
+  if (old_bit0) {
+    m_RegisterAF.lo |= (1 << FLAG_C);
   }
 }

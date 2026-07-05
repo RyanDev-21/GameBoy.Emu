@@ -68,7 +68,8 @@ private:
 
   // Global Interrupt
   bool m_MasterInterrupt;
-
+  // One delay interrupt
+  bool m_EIpending;
   // Stack Related
   void PushWordToStack(word data);
   word PopWordFromStack();
@@ -122,7 +123,7 @@ private:
   void CPU_8bit_ImmeMemToReg(byte &reg1);
   void CPU_8bit_RegToImmeMem(byte reg);
   void CPU_8bit_RegToC(byte reg);
-  void CPU_8bit_CToReg(byte reg);
+  void CPU_8bit_CToReg(byte &reg);
   void CPU_8bit_ADD(byte &reg, byte toAdd, bool useImmediate, bool addCarry);
   void CPU_8bit_SUB(byte &reg, byte toSub, bool useImmediate, bool borrowCarry);
   void CPU_8bit_XOR(byte &reg, byte toXOR, bool useImmediate);
@@ -143,6 +144,16 @@ private:
   void CPU_16bit_ADD(Register &reg, Register reg2, bool z_flag);
   void CPU_16bit_NToSP();
   void CPU_8bit_SWAP(byte &reg);
+  void CPU_8bit_DAA();
+  void CPU_8bit_INC(byte &reg, byte &flagReg);
+  void CPU_8bit_DEC(byte &reg, byte &flagReg);
+  void CPU_8bit_RLC(byte &reg);
+  void CPU_8bit_RL(byte &reg);
+  void CPU_8bit_RRC(byte &reg);
+  void CPU_8bit_RR(byte &reg);
+  void CPU_8bit_SLA(byte &reg);
+  void CPU_8bit_SRA(byte &reg);
+  void CPU_8bit_SRL(byte &reg);
   // Helpers
   word ReadWord();
 
