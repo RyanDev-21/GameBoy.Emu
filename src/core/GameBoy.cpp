@@ -324,12 +324,11 @@ void GameBoy::RequestInterrupt(int id) {
 void GameBoy::DoInterrupts() {
   if (m_MasterInterrupt) {
     byte req = ReadMemory(0xFF0F);
-    byte enabled =
-        ReadMemory(0xFFFF); // this is the address for interrupt enabled
+    byte enabled = ReadMemory(0xFFFF);
     if (req > 0) {
-      for (int i = 0; i < 5; i++) {        // exactly 4 bit to check
-        if ((req & (1 << i)) == 1) {       // check every bit in req
-          if ((enabled & (1 << i)) == 1) { // check every bit in enalbed
+      for (int i = 0; i < 5; i++) {
+        if ((req & (1 << i)) == 1) {
+          if ((enabled & (1 << i)) == 1) {
             ServiceInterrupt(i);
           }
         }
@@ -1789,6 +1788,16 @@ int GameBoy::ExcuteOpcode(byte opcode) {
       CPU_8bit_SRL(m_RegisterAF.hi);
       return 8;
     default:
+      // BIT b,r (0x40-0x7F) — test bit b in register r
+      // register field (bits 2-0) = 6 means (HL) → 16 cycles
+      if (cb_opcode >= 0x40 && cb_opcode <= 0x7F) {
+        CPU_8bit_Bit_Test(cb_opcode);
+        return ((cb_opcode & 7) == 6 ? 16 : 8);
+      }
+      if (cb_opcode >= 0xC0 && cb_opcode <= 0xFF) {
+        CPU_8bit_BIT_SET(cb_opcode);
+        return ((cb_opcode & 7) == 6 ? 16 : 8);
+      }
       return 0;
     }
   }
@@ -2352,5 +2361,76 @@ void GameBoy::CPU_8bit_SRL(byte &reg) {
   }
   if (old_bit0) {
     m_RegisterAF.lo |= (1 << FLAG_C);
+  }
+}
+
+void GameBoy::CPU_8bit_Bit_Test(byte opcode) {
+  byte bit = (opcode >> 3) & 7;
+  byte reg = opcode & 7;
+  byte val = 0;
+  switch (reg) {
+  case 0:
+    val = m_RegisterBC.hi;
+    break;
+  case 1:
+    val = m_RegisterBC.lo;
+    break;
+  case 2:
+    val = m_RegisterDE.hi;
+    break;
+  case 3:
+    val = m_RegisterDE.lo;
+    break;
+  case 4:
+    val = m_RegisterHL.hi;
+    break;
+  case 5:
+    val = m_RegisterHL.lo;
+    break;
+  case 6:
+    val = ReadMemory(m_RegisterHL.reg);
+    break;
+  case 7:
+    val = m_RegisterAF.hi;
+    break;
+  }
+  m_RegisterAF.lo &= (1 << FLAG_C); // not effected
+  m_RegisterAF.lo |= (1 << FLAG_H); // set
+  if (!(val & (1 << bit))) {
+    m_RegisterAF.lo |= (1 << FLAG_Z);
+  }
+}
+
+void GameBoy::CPU_8bit_BIT_SET(byte opcode) {
+  byte bit = (opcode >> 3) & 7;
+  byte reg = opcode & 7;
+  switch (reg) {
+  case 0:
+    m_RegisterBC.hi |= (1 << bit);
+    break;
+  case 1:
+    m_RegisterBC.lo |= (1 << bit);
+    break;
+  case 2:
+    m_RegisterDE.hi |= (1 << bit);
+    break;
+  case 3:
+    m_RegisterDE.lo |= (1 << bit);
+    break;
+  case 4:
+    m_RegisterHL.hi |= (1 << bit);
+    break;
+  case 5:
+    m_RegisterHL.lo |= (1 << bit);
+    break;
+  case 6: {
+    byte val = ReadMemory(m_RegisterHL.reg);
+    val |= (1 << bit);
+    WriteMemory(m_RegisterHL.reg, val);
+    break;
+  }
+  case 7:
+    m_RegisterAF.hi |= (1 << bit);
+    break;
   }
 }

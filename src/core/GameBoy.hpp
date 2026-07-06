@@ -154,6 +154,8 @@ private:
   void CPU_8bit_SLA(byte &reg);
   void CPU_8bit_SRA(byte &reg);
   void CPU_8bit_SRL(byte &reg);
+  void CPU_8bit_Bit_Test(byte opcode);
+  void CPU_8bit_BIT_SET(byte opcode);
   // Helpers
   word ReadWord();
 
