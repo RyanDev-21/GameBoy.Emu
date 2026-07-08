@@ -14,6 +14,14 @@ enum COLOUR {
   BLACK = 3,
 };
 
+// For jump condition
+enum CC {
+  NZ = 0,
+  Z = 1,
+  NC = 2,
+  C = 3,
+};
+
 // Some quirks to handle the opcode
 // Not Important
 enum OP {
@@ -25,7 +33,7 @@ enum OP {
 typedef unsigned char byte;
 typedef unsigned short word;
 typedef signed short signed_word;
-typedef unsigned char signed_byte;
+typedef signed char signed_byte;
 union Register {
   word reg;
   struct {
@@ -70,6 +78,8 @@ private:
   bool m_MasterInterrupt;
   // One delay interrupt
   bool m_EIpending;
+  // Halt
+  bool m_Halt;
   // Stack Related
   void PushWordToStack(word data);
   word PopWordFromStack();
@@ -156,6 +166,9 @@ private:
   void CPU_8bit_SRL(byte &reg);
   void CPU_8bit_Bit_Test(byte opcode);
   void CPU_8bit_BIT_SET(byte opcode);
+  void CPU_8bit_BIT_RESET(byte reg);
+  void CPU_8bit_JP_2Byte_Imme(CC cc);
+  void CPU_8bit_Restart(byte addr);
   // Helpers
   word ReadWord();
 

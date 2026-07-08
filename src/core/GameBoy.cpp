@@ -17,7 +17,8 @@ GameBoy::GameBoy()
       m_programCounter(0x100), m_RegisterAF{.reg = 0x01B0},
       m_RegisterBC{.reg = 0x0013}, m_RegisterDE{.reg = 0x00D8},
       m_RegisterHL{.reg = 0x014D}, current_romBank(1), current_ramBank(0),
-      m_MBU1(false), m_MBU2(false), m_enableRAM(false), m_EIpending(0) {
+      m_MBU1(false), m_MBU2(false), m_enableRAM(false), m_EIpending(0),
+      m_Halt(false) {
   // allocate stack pointer
   m_stackPointer.reg = 0xFFFE;
   // init the ramBanks
@@ -344,6 +345,7 @@ void GameBoy::DoInterrupts() {
 // TIMER: 0x50
 // JOYPAD: 0x60
 void GameBoy::ServiceInterrupt(int interrupt) {
+  m_Halt = false;
   m_MasterInterrupt = false;
   byte req = ReadMemory(0xFF0F);
   req ^= (1 << interrupt); // flip the bit
@@ -912,6 +914,13 @@ void GameBoy::KeyReleased(int key) { m_joyPadState |= (1 << key); }
 
 void GameBoy::NextOpCodeExcute() {
   int res = 0;
+  if (m_Halt) {
+    if (m_EIpending) {
+      m_EIpending = false;
+      m_MasterInterrupt = true;
+    }
+    return;
+  }
   byte opcode = ReadMemory(m_programCounter);
   m_programCounter++;
   res = ExcuteOpcode(opcode);
@@ -930,7 +939,7 @@ int GameBoy::ExcuteOpcode(byte opcode) {
     CPU_16bit_MemToReg(m_RegisterBC);
     return 12;
   case 0x02:
-    CPU_8bit_MemToReg(m_RegisterAF.hi, m_RegisterBC, NONE);
+    CPU_8bit_RegToMem(m_RegisterBC, m_RegisterAF.hi, NONE);
     return 8;
   case 0x03:
     m_RegisterBC.reg++;
@@ -978,7 +987,7 @@ int GameBoy::ExcuteOpcode(byte opcode) {
     CPU_16bit_MemToReg(m_RegisterDE);
     return 12;
   case 0x12:
-    CPU_8bit_MemToReg(m_RegisterAF.hi, m_RegisterDE, NONE);
+    CPU_8bit_RegToMem(m_RegisterDE, m_RegisterAF.hi, NONE);
     return 8;
   case 0x13:
     m_RegisterDE.reg++;
@@ -1036,7 +1045,7 @@ int GameBoy::ExcuteOpcode(byte opcode) {
     return 8;
   case 0x27:
     CPU_8bit_DAA();
-    return 27;
+    return 4;
   case 0x2A:
     CPU_8bit_MemToReg(m_RegisterAF.hi, m_RegisterHL, INC);
     return 8;
@@ -1103,7 +1112,7 @@ int GameBoy::ExcuteOpcode(byte opcode) {
     CPU_8bit_Reg_Load(m_RegisterAF.hi, m_RegisterAF.hi);
     return 4;
   case 0x77:
-    CPU_8bit_MemToReg(m_RegisterAF.hi, m_RegisterHL, NONE);
+    CPU_8bit_RegToMem(m_RegisterHL, m_RegisterAF.hi, NONE);
     return 8;
   case 0x78:
     CPU_8bit_Reg_Load(m_RegisterAF.hi, m_RegisterBC.hi);
@@ -1290,6 +1299,9 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0x75:
     CPU_8bit_RegToMem(m_RegisterHL, m_RegisterHL.lo, NONE);
     return 8;
+  case 0x76:
+    m_Halt = true;
+    return 4;
   case 0x36:
     CPU_8bit_ImmeToMem(m_RegisterHL);
     return 12;
@@ -1552,6 +1564,12 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0xC1:
     CPU_16bit_PopToReg(m_RegisterBC);
     return 12;
+  case 0xC2:
+    CPU_8bit_JP_2Byte_Imme(NZ);
+    return 12;
+  case 0xC3:
+    m_programCounter = ReadWord();
+    return 12;
   case 0xC4:
     CPU_Call(false, FLAG_Z, true);
     return 12;
@@ -1561,12 +1579,22 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0xC6:
     CPU_8bit_ADD(m_RegisterAF.hi, 0, true, false);
     return 8;
+  case 0xC7:
+    CPU_8bit_Restart(0x00);
+    return 32;
   case 0xCE:
     CPU_8bit_ADD(m_RegisterAF.hi, 0, true, true);
     return 8;
   case 0xCC:
     CPU_Call(true, FLAG_Z, true);
     return 12;
+  case 0xCD:
+    CPU_Call(false, FLAG_C, false);
+    return 12;
+  case 0xCA:
+    CPU_8bit_JP_2Byte_Imme(Z);
+    return 12;
+
   case 0xCB: {
     byte cb_opcode = ReadMemory(m_programCounter);
     m_programCounter++;
@@ -1798,6 +1826,10 @@ int GameBoy::ExcuteOpcode(byte opcode) {
         CPU_8bit_BIT_SET(cb_opcode);
         return ((cb_opcode & 7) == 6 ? 16 : 8);
       }
+      if (cb_opcode >= 0x80 && cb_opcode <= 0xBF) {
+        CPU_8bit_BIT_RESET(cb_opcode);
+        return ((cb_opcode & 7) == 6 ? 16 : 8);
+      }
       return 0;
     }
   }
@@ -1810,6 +1842,11 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0xC8:
     CPU_RETURN(true, FLAG_Z, true);
     return 8;
+  case 0xC9: {
+    word addr = PopWordFromStack();
+    m_programCounter = addr;
+    return 8;
+  }
   case 0xC0:
     CPU_RETURN(false, FLAG_Z, true);
     return 8;
@@ -1819,9 +1856,38 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0xD1:
     CPU_16bit_PopToReg(m_RegisterDE);
     return 12;
+  case 0xD2:
+    CPU_8bit_JP_2Byte_Imme(NC);
+    return 12;
+  case 0xD4:
+    CPU_Call(false, FLAG_C, true);
+    return 12;
   case 0xD5:
     PushWordToStack(m_RegisterDE.reg);
     return 16;
+  case 0xD6:
+    CPU_8bit_SUB(m_RegisterAF.hi, 0, true, false);
+    return 8;
+  case 0xD8:
+    CPU_RETURN(true, FLAG_C, true);
+    return 8;
+  case 0xD9: {
+    word addr = PopWordFromStack();
+    m_programCounter = addr;
+    m_MasterInterrupt = true;
+    m_EIpending = false;
+    return 8;
+  }
+
+  case 0xDA:
+    CPU_8bit_JP_2Byte_Imme(C);
+    return 12;
+  case 0xDC:
+    CPU_Call(true, FLAG_C, true);
+    return 12;
+  case 0xDE:
+    CPU_8bit_SUB(m_RegisterAF.hi, 0, true, true);
+    return 8;
   case 0xE0:
     CPU_8bit_RegToImmeN0xFF00(m_RegisterAF.hi);
     return 12;
@@ -1834,10 +1900,15 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0xE5:
     PushWordToStack(m_RegisterHL.reg);
     return 16;
-  case 0xE8: {
+  case 0xE6:
+    CPU_8bit_AND(m_RegisterAF.hi, 0, true);
+    return 8;
+  case 0xE8:
     CPU_16bit_NToSP();
     return 16;
-  }
+  case 0xE9:
+    m_programCounter = m_RegisterHL.reg;
+    return 4;
   case 0xEA:
     CPU_8bit_RegToImmeMem(m_RegisterAF.hi);
     return 12;
@@ -1857,6 +1928,9 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0xF5:
     PushWordToStack(m_RegisterAF.reg);
     return 16;
+  case 0xF6:
+    CPU_8bit_OR(m_RegisterAF.hi, 0, true);
+    return 8;
   case 0xF8:
     CPU_16bit_SPNnToHL();
     return 12;
@@ -1869,6 +1943,27 @@ int GameBoy::ExcuteOpcode(byte opcode) {
   case 0xFB:
     m_EIpending = true;
     return 4;
+  case 0xCF:
+    CPU_8bit_Restart(0x08);
+    return 32;
+  case 0xD7:
+    CPU_8bit_Restart(0x10);
+    return 32;
+  case 0xDF:
+    CPU_8bit_Restart(0x18);
+    return 32;
+  case 0xE7:
+    CPU_8bit_Restart(0x20);
+    return 32;
+  case 0xEF:
+    CPU_8bit_Restart(0x28);
+    return 32;
+  case 0xF7:
+    CPU_8bit_Restart(0x30);
+    return 32;
+  case 0xFF:
+    CPU_8bit_Restart(0x38);
+    return 32;
   default:
     return 0;
   }
@@ -2016,7 +2111,7 @@ void GameBoy::CPU_8bit_OR(byte &reg, byte toOR, bool useImmediate) {
 };
 
 void GameBoy::CPU_JUMP_IMMEDIATE(bool condition, int flag, bool useCondition) {
-  byte n = ReadMemory(m_programCounter);
+  signed char n = (signed_byte)ReadMemory(m_programCounter);
   if (!useCondition) {
     // if not using condition/jump straight
     m_programCounter += n;
@@ -2433,4 +2528,80 @@ void GameBoy::CPU_8bit_BIT_SET(byte opcode) {
     m_RegisterAF.hi |= (1 << bit);
     break;
   }
+}
+
+void GameBoy::CPU_8bit_BIT_RESET(byte opcode) {
+  byte bit = (opcode >> 3) & 7;
+  byte reg = opcode & 7;
+  switch (reg) {
+  case 0:
+    m_RegisterBC.hi &= ~(1 << bit);
+    break;
+  case 1:
+    m_RegisterBC.lo &= ~(1 << bit);
+    break;
+  case 2:
+    m_RegisterDE.hi &= ~(1 << bit);
+    break;
+  case 3:
+    m_RegisterDE.lo &= ~(1 << bit);
+    break;
+  case 4:
+    m_RegisterHL.hi &= ~(1 << bit);
+    break;
+  case 5:
+    m_RegisterHL.lo &= ~(1 << bit);
+    break;
+  case 6: {
+    byte val = ReadMemory(m_RegisterHL.reg);
+    val &= ~(1 << bit);
+    WriteMemory(m_RegisterHL.reg, val);
+    break;
+  }
+  case 7:
+    m_RegisterAF.hi &= ~(1 << bit);
+    break;
+  }
+}
+
+void GameBoy::CPU_8bit_JP_2Byte_Imme(CC cc) {
+  word addr = ReadWord();
+  switch (cc) {
+  case 0:
+    if ((m_RegisterAF.lo & (1 << FLAG_Z)) == 0) {
+      m_programCounter = addr;
+    } else {
+      m_programCounter += 2;
+    }
+    break;
+  case 1:
+    if ((m_RegisterAF.lo & (1 << FLAG_Z)) != 0) {
+      m_programCounter = addr;
+    } else {
+      m_programCounter += 2;
+    }
+    break;
+  case 2:
+    if ((m_RegisterAF.lo & (1 << FLAG_C)) == 0) {
+      m_programCounter = addr;
+    } else {
+      m_programCounter += 2;
+    }
+    break;
+  case 3:
+    if ((m_RegisterAF.lo & (1 << FLAG_C)) != 0) {
+      m_programCounter = addr;
+    } else {
+      m_programCounter += 2;
+    }
+    break;
+  default:
+    m_programCounter += 2;
+    break;
+  }
+}
+
+void GameBoy::CPU_8bit_Restart(byte addr) {
+  PushWordToStack(m_programCounter);
+  m_programCounter = addr;
 }
