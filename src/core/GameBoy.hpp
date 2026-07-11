@@ -43,26 +43,29 @@ union Register {
 };
 
 class GameBoy {
-private:
+ private:
   byte m_CartridgeMemory[0x200000];
-  byte m_screenData[160][144][3]; //[Width,Height,Color]
+  byte m_screenData[144][160][4];  //[Height,Width,ARGB]
   byte m_rom[0x10000];
   Register m_RegisterAF;
   Register m_RegisterBC;
   Register m_RegisterDE;
   Register m_RegisterHL;
   word m_programCounter;
-  Register m_stackPointer; // game boy opcode sometimes uses low and high byte
-  byte m_ramBanks[0x8000]; // RamBanks for cartridge
-  byte current_ramBank;    // by default this is 0
-  byte m_enableRAM;        // for  RAM enable
-  byte m_enableROM;        // for RAM or ROM
+  Register m_stackPointer;  // game boy opcode sometimes uses low and high byte
+  byte m_ramBanks[0x8000];  // RamBanks for cartridge
+  byte current_ramBank;     // by default this is 0
+  byte m_enableRAM;         // for  RAM enable
+  byte m_enableROM;         // for RAM or ROM
   // by default it has to be 1
   byte current_romBank;
 
   // ram bank controllers
   byte m_MBU1;
   byte m_MBU2;
+  byte m_MBC3;
+  byte m_mbc3RamBankOrRtc;
+  bool m_mbc3RtcRegister;
 
   // track the lower bits of 0xFF04
   byte m_DividerCounter;
@@ -74,7 +77,12 @@ private:
   // scanline count cycles
   int m_scalineCounter;
 
-  // Global Interrupt
+  byte m_SerialOutput[256];
+  int m_SerialIndex;
+  word m_PCTrace[64];
+  int m_PCTraceIdx;
+  bool m_RestartDetected;
+  bool m_FirstStart;
   bool m_MasterInterrupt;
   // One delay interrupt
   bool m_EIpending;
@@ -118,69 +126,94 @@ private:
   COLOUR ReadColor(int colorNum, word address);
   // Get Current joypad State
   byte GetJoyPadState() const;
-  void KeyPressed(int key);
-  void KeyReleased(int key);
 
   // Opcode Related stuff
-  void NextOpCodeExcute();
+  int NextOpCodeExcute();
   int ExcuteOpcode(byte opcode);
   // Opcode translation stuff
-  void CPU_8bit_Load(byte &reg);
-  void CPU_8bit_Reg_Load(byte &reg1, byte &reg2);
-  void CPU_8bit_MemToReg(byte &reg1, Register reg2, OP operation);
+  void CPU_8bit_Load(byte& reg);
+  void CPU_8bit_Reg_Load(byte& reg1, byte& reg2);
+  void CPU_8bit_MemToReg(byte& reg1, Register reg2, OP operation);
   void CPU_8bit_RegToMem(Register reg1, byte reg2, OP operation);
   void CPU_8bit_ImmeToMem(Register reg1);
-  void CPU_8bit_ImmeMemToReg(byte &reg1);
+  void CPU_8bit_ImmeMemToReg(byte& reg1);
   void CPU_8bit_RegToImmeMem(byte reg);
   void CPU_8bit_RegToC(byte reg);
-  void CPU_8bit_CToReg(byte &reg);
-  void CPU_8bit_ADD(byte &reg, byte toAdd, bool useImmediate, bool addCarry);
-  void CPU_8bit_SUB(byte &reg, byte toSub, bool useImmediate, bool borrowCarry);
-  void CPU_8bit_XOR(byte &reg, byte toXOR, bool useImmediate);
-  void CPU_8bit_AND(byte &reg, byte toAND, bool useImmediate);
-  void CPU_8bit_OR(byte &reg, byte toOR, bool useImmediate);
-  void CPU_JUMP_IMMEDIATE(bool condition, int flag, bool useCondition);
-  void CPU_Call(bool condition, int flag, bool useCondition);
-  void CPU_RETURN(bool condition, int flag, bool useCondition);
+  void CPU_8bit_CToReg(byte& reg);
+  void CPU_8bit_ADD(byte& reg, byte toAdd, bool useImmediate, bool addCarry);
+  void CPU_8bit_SUB(byte& reg, byte toSub, bool useImmediate, bool borrowCarry);
+  void CPU_8bit_XOR(byte& reg, byte toXOR, bool useImmediate);
+  void CPU_8bit_AND(byte& reg, byte toAND, bool useImmediate);
+  void CPU_8bit_OR(byte& reg, byte toOR, bool useImmediate);
+  bool CPU_JUMP_IMMEDIATE(bool condition, int flag, bool useCondition);
+  bool CPU_Call(bool condition, int flag, bool useCondition);
+  bool CPU_RETURN(bool condition, int flag, bool useCondition);
   void CPU_8bit_RegToImmeN0xFF00(byte reg);
-  void CPU_8bit_ImmeN0xFF00ToReg(byte &reg);
-  void CPU_16bit_MemToReg(Register &reg);
-  void CPU_16bit_Reg_Load(Register &reg1, Register &reg2);
+  void CPU_8bit_ImmeN0xFF00ToReg(byte& reg);
+  void CPU_16bit_MemToReg(Register& reg);
+  void CPU_16bit_Reg_Load(Register& reg1, Register& reg2);
   void CPU_16bit_SPNnToHL();
   void CPU_16bit_RegToImmeMem(Register reg);
-  void CPU_16bit_PopToReg(Register &reg);
+  void CPU_16bit_PopToReg(Register& reg);
   void CPU_8bit_CP(byte reg, byte reg1);
-  void CPU_8bit_SimOp(byte &reg, OP operation);
-  void CPU_16bit_ADD(Register &reg, Register reg2, bool z_flag);
+  void CPU_8bit_SimOp(byte& reg, OP operation);
+  void CPU_16bit_ADD(Register& reg, Register reg2, bool z_flag);
   void CPU_16bit_NToSP();
-  void CPU_8bit_SWAP(byte &reg);
+  void CPU_8bit_SWAP(byte& reg);
   void CPU_8bit_DAA();
-  void CPU_8bit_INC(byte &reg, byte &flagReg);
-  void CPU_8bit_DEC(byte &reg, byte &flagReg);
-  void CPU_8bit_RLC(byte &reg);
-  void CPU_8bit_RL(byte &reg);
-  void CPU_8bit_RRC(byte &reg);
-  void CPU_8bit_RR(byte &reg);
-  void CPU_8bit_SLA(byte &reg);
-  void CPU_8bit_SRA(byte &reg);
-  void CPU_8bit_SRL(byte &reg);
+  void CPU_8bit_INC(byte& reg, byte& flagReg);
+  void CPU_8bit_DEC(byte& reg, byte& flagReg);
+  void CPU_8bit_RLC(byte& reg);
+  void CPU_8bit_RL(byte& reg);
+  void CPU_8bit_RRC(byte& reg);
+  void CPU_8bit_RR(byte& reg);
+  void CPU_8bit_SLA(byte& reg);
+  void CPU_8bit_SRA(byte& reg);
+  void CPU_8bit_SRL(byte& reg);
   void CPU_8bit_Bit_Test(byte opcode);
   void CPU_8bit_BIT_SET(byte opcode);
   void CPU_8bit_BIT_RESET(byte reg);
-  void CPU_8bit_JP_2Byte_Imme(CC cc);
+  bool CPU_8bit_JP_2Byte_Imme(CC cc);
   void CPU_8bit_Restart(byte addr);
   // Helpers
   word ReadWord();
 
-public:
+ public:
   GameBoy();
   void WriteMemory(word address, byte data);
   byte ReadMemory(word address) const;
-  void ReadRom(char const *filePath);
+  void ReadRom(char const* filePath);
   void UpdateTimers(int cycles);
-  void Update();
+  int Update();
   void UpdateGraphics(int cycles);
   void DrawScanLine();
+  void KeyPressed(int key);
+  void KeyReleased(int key);
+  const byte* GetScreenData() const;
+  word GetPC() const {
+    return m_programCounter;
+  }
+  word GetSP() const {
+    return m_stackPointer.reg;
+  }
+  word GetAF() const {
+    return m_RegisterAF.reg;
+  }
+  word GetBC() const {
+    return m_RegisterBC.reg;
+  }
+  word GetDE() const {
+    return m_RegisterDE.reg;
+  }
+  word GetHL() const {
+    return m_RegisterHL.reg;
+  }
+  const char* GetSerialOutput() const {
+    return (const char*)m_SerialOutput;
+  }
+  bool IsRestartDetected() const {
+    return m_RestartDetected;
+  }
 };
 
 #endif
