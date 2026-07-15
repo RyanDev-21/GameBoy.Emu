@@ -9,8 +9,16 @@ find_package(SDL2 REQUIRED CONFIG)
 add_executable(${PROJECT_NAME}
     src/main.cpp
     src/core/GameBoy.cpp
+    src/core/cpu.cpp
+    src/core/ppu.cpp
+    src/core/bus.cpp
+    src/core/timer.cpp
+    src/core/interrupt.cpp
+    src/core/joypad.cpp
+    src/utils/Debug.cpp
+    src/utils/StringUtils.cpp
     src/Platform/Platform.cpp
-) 
+)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2)
 

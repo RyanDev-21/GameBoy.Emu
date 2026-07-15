@@ -5,9 +5,10 @@
 #include <SDL2/SDL_keycode.h>
 #include <SDL2/SDL_scancode.h>
 
-#include <algorithm>
-#include <cctype>
+#include <cstdio>
 #include <fstream>
+
+#include "../utils/StringUtils.hpp"
 
 Platform::Platform(char const* title, int windowWidth, int windowHeight,
                    int textureWidth, int textureHeight) {
@@ -38,7 +39,7 @@ Platform::Platform(char const* title, int windowWidth, int windowHeight,
       SDL_SCANCODE_I,  // START
   };
   if (!file.is_open()) {
-    std::cout << "Could not open the config file.\nUsing Default config.\n";
+    fprintf(stderr, "Could not open the config file.\nUsing Default config.\n");
     for (int i = 0; i < 8; i++) {
       keys[default_keys[i]] = i;
     }
@@ -46,12 +47,14 @@ Platform::Platform(char const* title, int windowWidth, int windowHeight,
     processKeysFromFile(file);
   }
 }
+
 void Platform::Update(void const* buffer, int pitch) {
   SDL_UpdateTexture(texture, nullptr, buffer, pitch);
   SDL_RenderClear(renderer);
   SDL_RenderCopy(renderer, texture, nullptr, nullptr);
   SDL_RenderPresent(renderer);
 }
+
 bool Platform::ProcessInput(GameBoy& gameBoy) {
   bool quit = false;
 
@@ -78,34 +81,14 @@ bool Platform::ProcessInput(GameBoy& gameBoy) {
   return quit;
 }
 
-// Some Util functions
-static inline void ltrim(std::string& s) {
-  s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
-            return !std::isspace(ch);
-          }));
-}
-
-static inline void rtrim(std::string& s) {
-  s.erase(std::find_if(s.rbegin(), s.rend(),
-                       [](unsigned char ch) { return !std::isspace(ch); })
-              .base(),
-          s.end());
-}
-
-static inline std::string trim(std::string s) {
-  rtrim(s);
-  ltrim(s);
-  return s;
-}
-
 void Platform::processKeysFromFile(std::ifstream& file) {
   std::string line;
   while (std::getline(file, line, '\n')) {
     auto eq = line.find('=');
-    std::string btn = trim(line.substr(0, eq));
-    std::string key = trim(line.substr(eq + 1));
+    std::string btn = StringUtils::trim(line.substr(0, eq));
+    std::string key = StringUtils::trim(line.substr(eq + 1));
     int button = gbButtons[btn];
     SDL_Scancode sc = SDL_GetScancodeFromName(key.c_str());
     keys[sc] = button;
   }
-};
+}
