@@ -126,8 +126,6 @@ bool GameBoy::SaveRam(const char* savPath) {
   if (!file) {
     int errorCode = errno;
     std::string OS_errorMessage = std::generic_category().message(errorCode);
-
-    // Include the specific OS error inside your throw message
     throw std::runtime_error(
         "Failed to create save file. Reason: " + OS_errorMessage +
         " (Code: " + std::to_string(errorCode) + ")");
