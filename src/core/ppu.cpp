@@ -1,5 +1,5 @@
+#include "../utils/Debug.hpp"
 #include "GameBoy.hpp"
-
 // Timer address
 #define TIMA 0xFF05
 #define TMA 0xFF06
@@ -133,6 +133,7 @@ void GameBoy::DoDMATransfer(byte address) {
 // bit 0 - BG Display  (0=Off, 1=On)
 void GameBoy::DrawScanLine() {
   byte status = ReadMemory(0xFF40);
+  Debug::Print("%d\n", status);
   if ((status & 1) != 0) {  // check bit 0
     RenderTiles();
   }
@@ -174,23 +175,23 @@ void GameBoy::RenderTiles() {
     tileData = 0x8800;  // this memory region use signed byte
   }
 
-  // check the window & background select bit
-  if (false == usingWindow) {
-    // which background memory region
-    if ((status & 8) != 0) {  // check bit 3
-      backgroundMem = 0x9C00;
-    } else {
-      backgroundMem = 0x9800;
-    }
-  } else {
-    // whcih window memory region
-    if ((status & 64) != 0) {  // check bit 6
-      backgroundMem = 0x9C00;
-    } else {
-      backgroundMem = 0x9800;
-    }
-  }
-
+  // // check the window & background select bit
+  // if (false == usingWindow) {
+  //   // which background memory region
+  //   if ((status & 8) != 0) {  // check bit 3
+  //     backgroundMem = 0x9C00;
+  //   } else {
+  //     backgroundMem = 0x9800;
+  //   }
+  // } else {
+  //   // whcih window memory region
+  //   if ((status & 64) != 0) {  // check bit 6
+  //     backgroundMem = 0x9C00;
+  //   } else {
+  //     backgroundMem = 0x9800;
+  //   }
+  // }
+  //
   byte yPos = 0;
 
   if (!usingWindow) {
@@ -201,21 +202,37 @@ void GameBoy::RenderTiles() {
     // data
     yPos = ReadMemory(0xFF44) - windowY;
   }
-  // each tile is 8x8
-  // so to get the tileRow index(current scanline pixel) we have to divide by  8
-  // to yPos and multiply 32 to jump to corret index
-  word tileRow = (((byte)(yPos / 8)) * 32);  // vertical tiles index
+
   // draw the horizontal pixel
   for (int pixel = 0; pixel < 160; pixel++) {
     byte xPos = scrollX + pixel;
-    if (usingWindow) {
-      if (pixel >= windowX) {    // at drawing window pixel
-        xPos = pixel - windowX;  // reset
+    byte localY = 0;
+    if (usingWindow && pixel >= windowX) {  // at drawing window pixel
+      xPos = pixel - windowX;               // reset
+      localY = ReadMemory(0xFF44) - windowY;
+      // whcih window memory region
+      if ((status & 64) != 0) {  // check bit 6
+        backgroundMem = 0x9C00;
+      } else {
+        backgroundMem = 0x9800;
+      }
+    } else {
+      xPos = scrollX + pixel;
+      localY = ReadMemory(0xFF44) + scrollY;
+      if ((status & 8) != 0) {  // check bit 3
+        backgroundMem = 0x9C00;
+      } else {
+        backgroundMem = 0x9800;
       }
     }
+
     // horizontal tile index
     word tileCol = xPos / 8;
     signed_word tileNum;
+    // each tile is 8x8
+    // so to get the tileRow index(current scanline pixel) we have to divide by
+    // 8 to updated localY and multiply 32 to jump to corret index
+    word tileRow = (((byte)(localY / 8)) * 32);  // vertical tiles index
     // plus all three index and get the actual tileAddress
     word tileAddress = backgroundMem + tileRow + tileCol;
     if (unsig) {
@@ -224,7 +241,7 @@ void GameBoy::RenderTiles() {
       tileNum = (byte)ReadMemory(tileAddress);
     } else {
       // sig
-      tileNum = (signed_word)ReadMemory(tileAddress);
+      tileNum = (signed_byte)((byte)ReadMemory(tileAddress));
     }
 
     word tileLocation = tileData;
@@ -239,7 +256,7 @@ void GameBoy::RenderTiles() {
       tileLocation += (tileNum + 128) * 16;
     }
     // find the tile index of the current scanline to get the tileData
-    byte index = yPos % 8;
+    byte index = localY % 8;
     index *= 2;  // as two byte are taken for color bit in memory
     byte data1 = ReadMemory(tileLocation + index);
     byte data2 = ReadMemory(tileLocation + index + 1);
@@ -346,7 +363,7 @@ void GameBoy::RenderSprites() {
   bool flipY = false;
   bool flipX = false;
   // each frame can render 40 sprite
-  for (int sprite = 0; sprite < 40; sprite++) {
+  for (int sprite = 39; sprite >= 0; sprite--) {
     // each sprite takes 4 bytes
     byte index = sprite * 4;
     // each of this is 1 byte = total=4
@@ -442,11 +459,30 @@ void GameBoy::RenderSprites() {
         if ((scanline < 0 || scanline > 143) || (pixel < 0 || pixel > 159)) {
           continue;
         }
+
+        // hidden check
+        if (((attributes >> 7) & 1) != 0) {
+          if ((m_screenData[scanline][pixel][0] != 255) ||
+              (m_screenData[scanline][pixel][1] != 255) ||
+              (m_screenData[scanline][pixel][2] != 255)) {
+            continue;
+          }
+        }
         m_screenData[scanline][pixel][0] = red;
         m_screenData[scanline][pixel][1] = green;
         m_screenData[scanline][pixel][2] = blue;
         m_screenData[scanline][pixel][3] = 0xFF;
       }
+    }
+  }
+}
+
+void GameBoy::ScreenReset() {
+  for (int x = 0; x < 144; x++) {
+    for (int y = 0; y < 160; y++) {
+      m_screenData[x][y][0] = 255;
+      m_screenData[x][y][1] = 255;
+      m_screenData[x][y][2] = 255;
     }
   }
 }

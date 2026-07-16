@@ -1,6 +1,9 @@
 #include "GameBoy.hpp"
 
+#include <cstdio>
 #include <cstring>
+#include <fstream>
+#include <stdexcept>
 
 #include "../utils/Debug.hpp"
 
@@ -116,4 +119,29 @@ void GameBoy::RunTestMode(int maxFrames) {
   Debug::Print("Done. Screen output:\n\n");
   Debug::DumpScreenASCII((const byte*)m_screenData);
   Debug::PrintSerialOutput((const char*)m_SerialOutput);
+}
+
+bool GameBoy::SaveRam(const char* savPath) {
+  FILE* file = fopen(savPath, "wb");
+  if (!file) {
+    int errorCode = errno;
+    std::string OS_errorMessage = std::generic_category().message(errorCode);
+
+    // Include the specific OS error inside your throw message
+    throw std::runtime_error(
+        "Failed to create save file. Reason: " + OS_errorMessage +
+        " (Code: " + std::to_string(errorCode) + ")");
+  }
+  fwrite(m_ramBanks, 1, sizeof(m_ramBanks), file);
+  fclose(file);
+  return true;
+}
+
+void GameBoy::LoadRam(const char* loadPath) {
+  FILE* file = fopen(loadPath, "rb");
+  if (!file) {
+    return;
+  }
+  fread(m_ramBanks, 1, sizeof(m_ramBanks), file);
+  fclose(file);
 }

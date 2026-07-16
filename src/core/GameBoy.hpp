@@ -40,8 +40,10 @@ class GameBoy {
 
   void PushWordToStack(word data);
   word PopWordFromStack();
+  void ScreenReset();
   void HandleBanking(word address, byte data);
   void DoRAMBanking(word address, byte data);
+  byte ReadRTCRegister(byte value);
   void DoChangeLoROMBank(byte data);
   void DoChangeHiROMBank(byte data);
   void DoChangeRAMBank(byte data);
@@ -121,6 +123,8 @@ class GameBoy {
   void KeyReleased(int key);
   const byte* GetScreenData() const;
   void RunTestMode(int maxFrames);
+  bool SaveRam(const char* savPath);
+  void LoadRam(const char* loadPath);
 };
 
 #endif

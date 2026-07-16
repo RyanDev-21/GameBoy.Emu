@@ -106,6 +106,11 @@ byte GameBoy::ReadMemory(word address) const {
 
   // are we reading from switchable ram
   else if (address >= 0xA000 && address <= 0xBFFF) {
+    // if (m_enableRAM) {
+    //   if (m_mbc3RtcRegister) {
+    //     // return ReadRTCRegister(m_mbc3RamBankOrRtc);
+    //   }
+    // }
     // shif the offset
     word new_addr = address - 0xA000;
     // each ram bank is 0x2000
@@ -238,3 +243,7 @@ void GameBoy::DoChangeROMRAMBank(byte data) {
     current_ramBank = 0;
   }
 }
+
+// byte GameBoy::ReadRTCRegister(byte reg) {
+//
+// };
