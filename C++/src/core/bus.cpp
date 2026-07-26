@@ -186,7 +186,7 @@ void GameBoy::HandleBanking(word address, byte data) {
 
 void GameBoy::DoRAMBanking(word address, byte data) {
   if (m_MBU2) {
-    if ((address & 0x10) == 1) {
+    if ((address & 0x10) != 0) {
       return;
     }
   }

@@ -39,4 +39,7 @@ union Register {
   };
 };
 
+// For APU
+struct channel1 {};
+
 #endif
