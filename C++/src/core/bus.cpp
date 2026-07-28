@@ -137,8 +137,9 @@ void GameBoy::HandleBanking(word address, byte data) {
     } else if (address >= 0x2000 && address <= 0x3FFF) {
       // ROM Bank Number (0x00 maps to 0x01)
       byte bank = data & 0x7F;
-      if (bank == 0)
+      if (bank == 0) {
         bank = 1;
+      }
       current_romBank = bank;
     } else if (address >= 0x4000 && address <= 0x5FFF) {
       // RAM Bank Number or RTC Register Select
