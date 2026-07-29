@@ -67,3 +67,49 @@ void GameBoy::SetClockFeq() {
       break;
   }
 }
+
+void GameBoy ::updateRTC(float secondsElapsed) {
+  if ((m_RTCregs[4] & 0x40) != 0) {
+    return;
+  }
+  m_RTCaccumulator += secondsElapsed;
+  while (m_RTCaccumulator >= 1.0) {
+    m_RTCaccumulator -= 1.0;
+    tickOneSecond();
+  }
+};
+
+void GameBoy::tickOneSecond() {
+  m_RTCregs[0]++;
+  if (m_RTCregs[0] <= 59)
+    return;
+  m_RTCregs[0] = 0;
+
+  // minute
+  m_RTCregs[1]++;
+  if (m_RTCregs[1] <= 59) {
+    return;
+  }
+  m_RTCregs[1] = 0;
+
+  // hour
+  m_RTCregs[2]++;
+  if (m_RTCregs[2] <= 23) {
+    return;
+  }
+  m_RTCregs[2] = 0;
+
+  // day
+  m_RTCregs[3]++;
+  if (m_RTCregs[3] <= 0xFF) {
+    return;
+  }
+  m_RTCregs[3] = 0;
+
+  char dayMSB = (m_RTCregs[4] & 0x01) ^ 0x01;
+  m_RTCregs[4] = (m_RTCregs[4] & 0xFE) | dayMSB;
+
+  if (dayMSB == 0) {
+    m_RTCregs[4] |= 0x80;
+  }
+};

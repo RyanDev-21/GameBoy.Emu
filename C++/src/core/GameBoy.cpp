@@ -19,11 +19,14 @@ GameBoy::GameBoy()
       m_RegisterHL{.reg = 0x014D},
       current_romBank(1),
       current_ramBank(0),
-      m_MBU1(false),
-      m_MBU2(false),
+      m_MBC1(false),
+      m_MBC2(false),
       m_MBC3(false),
       m_mbc3RamBankOrRtc(0),
       m_mbc3RtcRegister(false),
+      m_mbc3RtcIdx(0),
+      m_RTCWriteState(0xFF),
+      m_RTCaccumulator(0.0),
       m_enableRAM(false),
       m_enableROM(true),
       m_DividerCounter(0),
@@ -34,6 +37,8 @@ GameBoy::GameBoy()
       m_EIpending(false),
       m_Halt(false) {
   m_stackPointer.reg = 0xFFFE;
+  memset(&m_RTCLatch, 0, sizeof(m_RTCLatch));
+  memset(&m_RTCregs, 0, sizeof(m_RTCregs));
   memset(&m_ramBanks, 0, sizeof(m_ramBanks));
   memset(&m_rom, 0, sizeof(m_rom));
   memset(&m_screenData, 0, sizeof(m_screenData));

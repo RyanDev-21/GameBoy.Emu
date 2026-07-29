@@ -20,12 +20,16 @@ class GameBoy {
   byte m_enableROM;
   byte current_romBank;
 
-  byte m_MBU1;
-  byte m_MBU2;
+  byte m_MBC1;
+  byte m_MBC2;
   byte m_MBC3;
   byte m_mbc3RamBankOrRtc;
   bool m_mbc3RtcRegister;
-
+  byte m_mbc3RtcIdx;
+  byte m_RTCWriteState;
+  byte m_RTCregs[5];
+  byte m_RTCLatch[5];
+  float m_RTCaccumulator;
   byte m_DividerCounter;
   byte m_joyPadState;
   int m_TimerCounter;
@@ -43,13 +47,17 @@ class GameBoy {
   void ScreenReset();
   void HandleBanking(word address, byte data);
   void DoRAMBanking(word address, byte data);
-  byte ReadRTCRegister(byte value);
+  byte ReadRTCRegister() const;
+  void doChangeRamOrRTC(byte data);
+  void handleRTCLatch(byte data);
   void DoChangeLoROMBank(byte data);
   void DoChangeHiROMBank(byte data);
   void DoChangeRAMBank(byte data);
   void DoChangeROMRAMBank(byte data);
+  void WriteRTCReg(byte data);
   void DoDividerCounter(int cycles);
   bool TimerClockEnabled() const;
+  void tickOneSecond();
   byte GetClockFeq() const;
   void SetClockFeq();
   void RequestInterrupt(int id);
@@ -119,6 +127,8 @@ class GameBoy {
   int Update();
   void UpdateGraphics(int cycles);
   void DrawScanLine();
+  void updateRTC(float secondsElapsed);
+  void fastForwardRTC(float secondsElapsed);
   void KeyPressed(int key);
   void KeyReleased(int key);
   const byte* GetScreenData() const;
