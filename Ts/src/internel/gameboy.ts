@@ -1,4 +1,3 @@
-import Register16 from "./types";
 class GameBoy {
 
     private m_CartridgeMemory: Uint8Array;
@@ -8,8 +7,13 @@ class GameBoy {
     private m_MBC2: boolean;
     private m_MBC3: boolean;
     private m_hiRomEnable: boolean; //for mbc1
-    private m_RTC: number;
     private m_RTCregEnable: boolean; //for mbc3's RTC
+    private m_RTCregs: Uint8Array;
+    private m_RTCidx: number;
+    private m_LatchRTC: Uint8Array;
+    private m_RTCWriteState: number;
+    private m_RTCAccumulator: number;
+    private m_RTCTimeStamp: number;
     private m_ramEnable: boolean;
     private m_currentRomBank: number;
     private m_currentRamBank: number;
@@ -22,6 +26,12 @@ class GameBoy {
         this.m_MBC2 = false;
         this.m_MBC3 = false;
         this.m_RTCregEnable = false;
+        this.m_RTCWriteState = 0xFF;
+        this.m_RTCAccumulator = 0; //for  seconds counter and stuff
+        this.m_LatchRTC = new Uint8Array(5); //for snapshot
+        this.m_RTCregs = new Uint8Array(5); //data 
+        this.m_RTCidx = 0;
+        this.m_RTCTimeStamp = Date.now();
         this.m_hiRomEnable = false;
         this.m_ramEnable = false;
         this.m_ramBanks = new Uint16Array(32768); //0x8000;
@@ -85,8 +95,12 @@ class GameBoy {
         //wirte into ram region
         else if ((address >= 0xA000) && (address < 0xC000)) {
             if (this.m_ramEnable) {
-                const word_addr: number = address - 0xA000;
-                this.m_ramBanks[word_addr + (this.m_currentRamBank * 0x2000)] = data;
+                if (this.m_MBC3 && this.m_RTCregEnable) {
+                    this.writeRTCReg(data);
+                } else {
+                    const word_addr: number = address - 0xA000;
+                    this.m_ramBanks[word_addr + (this.m_currentRamBank * 0x2000)] = data;
+                }
             }
         }
         //writing to echo ram also write to RAM
@@ -100,6 +114,86 @@ class GameBoy {
         else {
             this.m_rom[address] = data;
         }
+    }
+
+
+    //this is the update function for rtc and use in cpu cycle to update the rtc 
+    //timer RTC[4]'s bit 6 indicate if it is halt or not 
+    //if halt does nothing if not
+    //then it has to tick per second 
+    public updateRTC(secondsLapsed: number) {
+        if ((this.m_RTCregs[4]! & 0x40) !== 0) {//if halt
+            return;
+        }
+        this.m_RTCAccumulator += secondsLapsed; //this plus in 1/60 per second
+        while (this.m_RTCAccumulator >= 1.0) {
+            this.m_RTCAccumulator -= 1.0;
+            this.tickOneSecond();
+        }
+
+    }
+
+    //this function works like a water fall as the 
+    //sec reach certain level then goes to min and stuff and so on
+    //day counter  and the last reg works as a carry bit for  day counter
+    private tickOneSecond(): void {
+        //tick sec 
+        this.m_RTCregs[0]!++;
+        //check 60 secs up or not
+        if (this.m_RTCregs[0]! <= 59) return;
+        this.m_RTCregs[0] = 0;
+
+
+        //tick minute
+        this.m_RTCregs[1]! ++;
+        if (this.m_RTCregs[1]! <= 59) return;
+        this.m_RTCregs[1] = 0;
+
+        //tick hour
+        this.m_RTCregs[2]!++;
+        if ((this.m_RTCregs[2]! <= 23)) return;
+        this.m_RTCregs[2] = 0;
+
+        //tick day
+        this.m_RTCregs[3]!++;
+        if (this.m_RTCregs[3]! <= 0xFF) return;
+        this.m_RTCregs[3] = 0;
+
+        //this is the most significant bit for day counter 
+        //and bit0 represents that bit 
+        //so for the first 256 days it turns into 1
+        //and then it turns into 0 again when it reaches the 512
+        const dayMSB = (this.m_RTCregs[4]! & 0x01) ^ 0x01;
+        //this merge that updated bit to the value
+        this.m_RTCregs[4] = (this.m_RTCregs[4]! & 0xFE) | dayMSB;
+        if (dayMSB === 0) {//check if it is 512 overflow 
+            this.m_RTCregs[4] |= 0x80;//turn on the overflow bit
+        }
+    }
+    private readMemory(address: number): number {
+        //from rom bank 0
+        if (address < 0x4000) {
+            return this.m_CartridgeMemory[address] ?? 0xFF;
+        }
+        //from switchable rom bank
+        if ((address >= 0x4000) && (address <= 0x7FFF)) {
+            if (!this.m_ramEnable) return 0xFF;
+            if (this.m_MBC3 && this.m_RTCregEnable) {
+                return this.readRTCReg();
+            } else {
+                const new_addr: number = address - 0x4000;
+                return this.m_CartridgeMemory[new_addr + (this.m_currentRomBank * 0x4000)] ?? 0xFF;
+            }
+        }
+
+        //from ram bank
+        if ((address >= 0xA000) && (address <= 0xBFFF)) {
+            const new_addr: number = address - 0xA000;
+            return this.m_ramBanks[new_addr + (this.m_currentRamBank * 0x2000)] ?? 0xFF;
+        }
+
+        return this.m_rom[address] ?? 0xFF;
+
     }
 
     //mbc1 is weird it look for the mode in the 0x6000-0x8000
@@ -121,7 +215,7 @@ class GameBoy {
             }
 
         }
-        //mbc2 doesn't use this either
+        //mbc2 also doesn't use this 
         if ((address >= 0x4000) && (address <= 0x5FFF)) {
             if (this.m_MBC1) {
                 if (this.m_hiRomEnable) {
@@ -145,27 +239,89 @@ class GameBoy {
     }
 
 
+    //writing the consequetive  0x00 and 0x01 trigger the save state of the rtc to the latchrtc
     private handleRTCLatch(data: number) {
+        if (this.m_RTCWriteState === 0x00 && data == 0x01) {
+            this.m_LatchRTC.set(this.m_RTCregs);
+            return;
+        }
+        this.m_RTCWriteState = data;
+    }
 
+    //writing into RTC reg is simple 
+    //for index 0 to 3 just update the value
+    //but for index 4 the last reg only use 7,6,0 bits
+    private writeRTCReg(data: number) {
+        const idx: number = this.m_RTCidx - 0x08;
+        if (idx === 4) {
+            this.m_RTCregs[4] = data & 0xC1;
+        }
+        this.m_RTCregs[idx] = data;
+    }
+
+    private readRTCReg(): number {
+        const idx = this.m_RTCidx - 0x08;
+        return this.m_RTCregs[idx] ?? 0;
+    }
+
+
+    //this fastforward function will recalcualte the time passed since save and reapply to the 
+    //rtc registers
+    public fastForwardRTC(elapsedSeconds: number): void {
+        //halt or not 
+        if ((this.m_RTCregs[4]! & 0x40) !== 0) {
+            return;
+        }
+
+        //calc the total day by combining the msb bit from reg 4 and 8 bit from 3
+        let totalDays = ((this.m_RTCregs[4]! & 0x01) << 8) | this.m_RTCregs[3]!;
+        let totalSeconds = this.m_RTCregs[0]! +
+            this.m_RTCregs[1]! * 60 +
+            this.m_RTCregs[2]! * 3600 +
+            totalDays * 86400;
+
+        totalSeconds += Math.floor(elapsedSeconds);
+
+        //if  over 512 which means that seonds have overflowed
+        const overflow = totalSeconds >= 512 * 86400;
+        totalSeconds %= 512 * 86400;//warp at the max limit of 9 bit
+
+        this.m_RTCregs[0] = totalSeconds % 60;
+        this.m_RTCregs[1] = Math.floor(totalSeconds / 60) % 60;
+        this.m_RTCregs[2] = Math.floor(totalSeconds / 3600) & 24;
+        const newDays = Math.floor(totalSeconds / 86400);
+        this.m_RTCregs[3] = newDays & 0xFF;
+        //move 8 bit to the right to get the msb
+        let dh = (newDays >> 8) & 0x01;
+        //for overflow
+        if (overflow) {
+            dh |= 0x80;
+        }
+        //for halt bit
+        if ((this.m_RTCregs[4]! & 0x40) !== 0) {
+            dh |= 0x40;
+        }
+        //copy the updated value into the latched rtc
+        this.m_LatchRTC.set(this.m_RTCregs);
     }
 
     //only 2-bit are set as new value
     private doChangeRamBank(data: number) {
-        this.m_currentRamBank = data & 0x03;//only 2-bit are allowed
+        this.m_currentRamBank = data & 0x03;
     }
 
 
     //for mbc3 it does two thing if the data is less than
     //3 (which is 0-1) bit ==11 in bit
     // it does set to currentRamBank and change the RTC to false
-    // if not then enable it and then handle the rtc latch
+    // if not then enable it and then handle the rtc idx
     private doChangeRamOrRTC(data: number) {
-        this.m_RTC = data;
         if (data <= 3) {
             this.m_currentRamBank = data;
             this.m_RTCregEnable = false;
         } else if (data >= 0x08 && data <= 0x0C) {
             this.m_RTCregEnable = true;
+            this.m_RTCidx = data;
         }
     }
 
@@ -195,7 +351,7 @@ class GameBoy {
         }
     }
 
-    //in this case, mbc2 operate diff too  and mbc3 does operate diff too
+    //in this case, mbc2 operate diff  and mbc3 does operate diff too
     private doChangeLoRomBank(data: number): void {
         //for MBC2 case
         //it takes the lower  4 bits and then  set it to current Rom Bank
@@ -237,27 +393,6 @@ class GameBoy {
         }
     }
 
-
-    private readMemory(address: number): number {
-        //from rom bank 0
-        if (address < 0x4000) {
-            return this.m_CartridgeMemory[address] ?? 0xFF;
-        }
-        //from switchable rom bank
-        if ((address >= 0x4000) && (address <= 0x7FFF)) {
-            const new_addr: number = address - 0x4000;
-            return this.m_CartridgeMemory[new_addr + (this.m_currentRomBank * 0x4000)] ?? 0xFF;
-        }
-
-        //from ram bank
-        if ((address >= 0xA000) && (address <= 0xBFFF)) {
-            const new_addr: number = address - 0xA000;
-            return this.m_ramBanks[new_addr + (this.m_currentRamBank * 0x2000)] ?? 0xFF;
-        }
-
-        return this.m_rom[address] ?? 0xFF;
-
-    }
 
 
 
