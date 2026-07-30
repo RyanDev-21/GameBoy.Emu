@@ -3,10 +3,10 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <memory>
 #include <stdexcept>
 
 #include "../utils/Debug.hpp"
-
 // The consturctor will initialize and then set the required state of the
 // emulator as if the real game has started gameboy doesn't have an isolate
 // stack that's why it is allocated at the near end of higher byte after the
@@ -63,8 +63,8 @@ GameBoy::GameBoy()
   m_rom[0xFF20] = 0xFF;  // NR41
   m_rom[0xFF21] = 0x00;  // NR42
   m_rom[0xFF22] = 0x00;  // NR43
-  m_rom[0xFF23] = 0xBF;  // NR30
   m_rom[0xFF24] = 0x77;  // NR50
+  m_rom[0xFF23] = 0xBF;  // NR30
   m_rom[0xFF25] = 0xF3;  // NR51
   m_rom[0xFF26] = 0xF1;  // NR52
   m_rom[0xFF40] = 0x91;  // LCDC
@@ -135,16 +135,31 @@ bool GameBoy::SaveRam(const char* savPath) {
         "Failed to create save file. Reason: " + OS_errorMessage +
         " (Code: " + std::to_string(errorCode) + ")");
   }
-  fwrite(m_ramBanks, 1, sizeof(m_ramBanks), file);
+  std::unique_ptr<saveData> data = convertFormat();
+  fwrite(data.get(), 1, sizeof(data), file);
   fclose(file);
   return true;
 }
+
+std::unique_ptr<saveData> GameBoy::convertFormat() const {
+  auto data = std::make_unique<saveData>();
+  memcpy(data->RTCregs, m_RTCregs, sizeof(m_RTCregs));
+  memcpy(data->ramBanks, m_ramBanks, sizeof(m_ramBanks));
+  data->RTCTimeStamp = Clock::now();
+  return data;
+};
 
 void GameBoy::LoadRam(const char* loadPath) {
   FILE* file = fopen(loadPath, "rb");
   if (!file) {
     return;
   }
-  fread(m_ramBanks, 1, sizeof(m_ramBanks), file);
+  auto data_ptr = std::make_unique<saveData>();
+  fread(data_ptr.get(), 1, sizeof(saveData), file);
   fclose(file);
+  memcpy(m_ramBanks, data_ptr->ramBanks, sizeof(data_ptr->ramBanks));
+  memcpy(m_RTCregs, data_ptr->RTCregs, sizeof(data_ptr->RTCregs));
+  m_RTCtimeStamp = data_ptr->RTCTimeStamp;
+  std::chrono::duration<float> elasped_time = (Clock::now() - m_RTCtimeStamp);
+  fastForwardRTC(elasped_time.count());
 }

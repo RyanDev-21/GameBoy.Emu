@@ -1,5 +1,8 @@
-#include "GameBoy.hpp"
+#include <cmath>
+#include <cstdint>
+#include <cstring>
 
+#include "GameBoy.hpp"
 // Timer address
 #define TIMA 0xFF05
 #define TMA 0xFF06
@@ -29,7 +32,7 @@ void GameBoy::DoDividerCounter(int cycles) {
   m_DividerCounter += cycles;
   if (m_DividerCounter >= 256) {
     m_DividerCounter -= 256;  // reset
-    m_rom[0xFF04]++;          // increase the divider register
+    m_Div++;                  // increase the divider register
   }
 }
 
@@ -112,4 +115,35 @@ void GameBoy::tickOneSecond() {
   if (dayMSB == 0) {
     m_RTCregs[4] |= 0x80;
   }
+};
+
+void GameBoy::fastForwardRTC(float secondsElapsed) {
+  if ((m_RTCregs[4] & 0x40) != 0) {
+    return;
+  }
+  int days = m_RTCregs[3] | (m_RTCregs[4] & 0x01);
+  int64_t total_seconds =
+      m_RTCregs[0] + m_RTCregs[1] * 60 + m_RTCregs[2] * 3600 + days * 86400;
+  total_seconds += static_cast<int64_t>(std::floor(secondsElapsed));
+  const bool overflow = total_seconds >= 512 * 86400;
+  total_seconds %= 512 * 86400;
+
+  const bool previousOverflow = (m_RTCregs[4] & 0x80) != 0;
+
+  m_RTCregs[0] = total_seconds % 60;
+  m_RTCregs[1] = std::floor((total_seconds / 60) % 60);
+  m_RTCregs[2] = std::floor((total_seconds / 3600) % 24);
+
+  const uint16_t newDays = std::floor(total_seconds / 86400);
+  m_RTCregs[3] = newDays & 0xFF;
+
+  byte dh = (newDays >> 8) & 0x01;
+  if (overflow) {
+    dh |= 0x80;
+  }
+  if ((m_RTCregs[4] & 0x40) != 0) {
+    dh |= 0x40;
+  }
+  m_RTCregs[4] = dh;
+  memcpy(m_RTCLatch, m_RTCregs, sizeof(m_RTCregs));
 };

@@ -6,6 +6,10 @@
 #define FLAG_H 5
 #define FLAG_C 4
 
+#include <chrono>
+
+using Clock = std::chrono::system_clock;
+using TimePoint = Clock::time_point;
 enum COLOUR {
   WHITE = 0,
   LIGHT_GRAY = 1,
@@ -38,6 +42,14 @@ union Register {
     byte hi;
   };
 };
+
+#pragma pack(push, 1)
+struct saveData {
+  byte ramBanks[0x8000];
+  byte RTCregs[5];
+  TimePoint RTCTimeStamp;
+};
+#pragma pack(pop)
 
 // For APU
 struct channel1 {};

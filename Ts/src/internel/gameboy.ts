@@ -1,5 +1,4 @@
 class GameBoy {
-
     private m_CartridgeMemory: Uint8Array;
     private m_rom: Uint8Array;
     m_programCounter: Uint16Array;
@@ -85,7 +84,6 @@ class GameBoy {
     //reminder:::
     //when writing to the region below 0x7FFF
     //it should interpret as command and not data
-
     private writeMemory(address: number, data: number): void {
         //here we handle that command case
         if (address < 0x8000) {
@@ -116,7 +114,6 @@ class GameBoy {
         }
     }
 
-
     //this is the update function for rtc and use in cpu cycle to update the rtc 
     //timer RTC[4]'s bit 6 indicate if it is halt or not 
     //if halt does nothing if not
@@ -135,7 +132,7 @@ class GameBoy {
 
     //this function works like a water fall as the 
     //sec reach certain level then goes to min and stuff and so on
-    //day counter  and the last reg works as a carry bit for  day counter
+    //day counter has 9bit and the  reg 4 works as 8 bit and 5 works as a carry bit for  day counter
     private tickOneSecond(): void {
         //tick sec 
         this.m_RTCregs[0]!++;
@@ -177,19 +174,20 @@ class GameBoy {
         }
         //from switchable rom bank
         if ((address >= 0x4000) && (address <= 0x7FFF)) {
-            if (!this.m_ramEnable) return 0xFF;
-            if (this.m_MBC3 && this.m_RTCregEnable) {
-                return this.readRTCReg();
-            } else {
-                const new_addr: number = address - 0x4000;
-                return this.m_CartridgeMemory[new_addr + (this.m_currentRomBank * 0x4000)] ?? 0xFF;
-            }
+            const new_addr: number = address - 0x4000;
+            return this.m_CartridgeMemory[new_addr + (this.m_currentRomBank * 0x4000)] ?? 0xFF;
+
         }
 
         //from ram bank
         if ((address >= 0xA000) && (address <= 0xBFFF)) {
-            const new_addr: number = address - 0xA000;
-            return this.m_ramBanks[new_addr + (this.m_currentRamBank * 0x2000)] ?? 0xFF;
+            if (!this.m_ramEnable) return 0xFF;
+            if (this.m_MBC3 && this.m_RTCregEnable) {
+                return this.readRTCReg();
+            } else {
+                const new_addr: number = address - 0xA000;
+                return this.m_ramBanks[new_addr + (this.m_currentRamBank * 0x2000)] ?? 0xFF;
+            }
         }
 
         return this.m_rom[address] ?? 0xFF;
@@ -255,9 +253,11 @@ class GameBoy {
         const idx: number = this.m_RTCidx - 0x08;
         if (idx === 4) {
             this.m_RTCregs[4] = data & 0xC1;
+            return;
         }
         this.m_RTCregs[idx] = data;
     }
+
 
     private readRTCReg(): number {
         const idx = this.m_RTCidx - 0x08;
@@ -288,7 +288,7 @@ class GameBoy {
 
         this.m_RTCregs[0] = totalSeconds % 60;
         this.m_RTCregs[1] = Math.floor(totalSeconds / 60) % 60;
-        this.m_RTCregs[2] = Math.floor(totalSeconds / 3600) & 24;
+        this.m_RTCregs[2] = Math.floor(totalSeconds / 3600) % 24;
         const newDays = Math.floor(totalSeconds / 86400);
         this.m_RTCregs[3] = newDays & 0xFF;
         //move 8 bit to the right to get the msb
@@ -301,6 +301,8 @@ class GameBoy {
         if ((this.m_RTCregs[4]! & 0x40) !== 0) {
             dh |= 0x40;
         }
+
+        this.m_RTCregs[4] = dh;
         //copy the updated value into the latched rtc
         this.m_LatchRTC.set(this.m_RTCregs);
     }
@@ -343,12 +345,8 @@ class GameBoy {
             }
         }
         const value = data & 0x0F;
-        if (value === 0xA) {
-            this.m_ramEnable = true;
-            if (this.m_MBC3) {
-                this.m_RTCregEnable = true;
-            }
-        }
+        this.m_ramEnable = value === 0xA0;
+
     }
 
     //in this case, mbc2 operate diff  and mbc3 does operate diff too
@@ -393,9 +391,6 @@ class GameBoy {
         }
     }
 
-
-
-
     public async readRom(path: string): Promise<void> {
         const file = Bun.file(path);
         try {
@@ -405,7 +400,7 @@ class GameBoy {
         }
         //read from 0x147 i can use readmemory but this is more good i guess
         const mbcType = this.m_CartridgeMemory[0x147];
-        if (!mbcType) {
+        if (mbcType === undefined) {
             console.error(`Failed to get the mbcType:${mbcType}`);
             return;
         }

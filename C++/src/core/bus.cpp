@@ -33,7 +33,9 @@ void GameBoy::WriteMemory(word address, byte data) {
   }
   // if writing to the dividerRegister
   else if (address == 0xFF04) {
-    m_rom[0xFF04] = 0;  // reset to 0
+    m_Div = 0;
+    m_DividerCounter = 0;
+    return;
   }
   // serial output (Blargg test output)
   else if (address == 0xFF01) {
@@ -124,6 +126,10 @@ byte GameBoy::ReadMemory(word address) const {
   // joypad register - return computed button state
   else if (address == 0xFF00) {
     return GetJoyPadState();
+  }
+
+  else if (address == 0xFF04) {
+    return m_Div;
   }
 
   // others region? return

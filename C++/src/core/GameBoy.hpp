@@ -1,8 +1,9 @@
 #ifndef GAMEBOY_H
 #define GAMEBOY_H
 
-#include "../utils/types.hpp"
+#include <memory>
 
+#include "../utils/types.hpp"
 class GameBoy {
  private:
   byte m_CartridgeMemory[0x200000];
@@ -30,14 +31,16 @@ class GameBoy {
   byte m_RTCregs[5];
   byte m_RTCLatch[5];
   float m_RTCaccumulator;
-  byte m_DividerCounter;
+  TimePoint m_RTCtimeStamp;
+  word m_DividerCounter;
+  byte m_Div;
   byte m_joyPadState;
   int m_TimerCounter;
   int m_scalineCounter;
 
   byte m_SerialOutput[256];
-  int m_SerialIndex;
   bool m_RestartDetected;
+  int m_SerialIndex;
   bool m_MasterInterrupt;
   bool m_EIpending;
   bool m_Halt;
@@ -117,6 +120,8 @@ class GameBoy {
   bool CPU_8bit_JP_2Byte_Imme(CC cc);
   void CPU_8bit_Restart(byte addr);
   word ReadWord();
+  std::unique_ptr<saveData> convertFormat() const;
+  void RevertFormat(std::unique_ptr<saveData> data);
 
  public:
   GameBoy();
