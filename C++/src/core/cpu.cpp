@@ -1,5 +1,3 @@
-#include <cstring>
-
 #include "GameBoy.hpp"
 
 int GameBoy::NextOpCodeExcute() {
@@ -58,7 +56,7 @@ int GameBoy::ExcuteOpcode(byte opcode) {
     // this one behave diff based on the dmg and gbc
     case 0x10: {
       m_programCounter++;
-      if (m_isGBC && (m_rom[KEY_1] & 0x1)) {
+      if (m_isGBC && (ReadMemory(0xFF4D) & 0x1)) {
         ToggleDoubleSpeed();
       }
       return 4;
@@ -1161,9 +1159,9 @@ void GameBoy::CPU_8bit_Restart(byte addr) {
 // bit 1-6 :unused
 // this function will get called when the key_1 bit 0 is 1
 void GameBoy::ToggleDoubleSpeed() {
-  byte key_1 = ReadMemory(0xFF4D);
-  key_1 ^= 0x80;   // speed bit
-  key_1 &= ~0x01;  // clear request bit
-  m_rom[0xFF4D] = key_1;
-  m_doubleSpeed = (key_1 & 0x80) != 0;
+  byte key = ReadMemory(0xFF4D);
+  key ^= 0x80;   // speed bit
+  key &= ~0x01;  // clear request bit
+  m_rom[0xFF4D] = key;
+  m_doubleSpeed = (key & 0x80) != 0;
 }

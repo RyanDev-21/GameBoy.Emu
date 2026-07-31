@@ -1,5 +1,8 @@
 build/
+build-debug/
 .clang-format
 rom/
 Fixes.md
 saveFiles/
+C++/GBCfix.md
+

@@ -12,6 +12,14 @@
 // Takes 456 cycles for 1 scanline to finish
 void GameBoy::UpdateGraphics(int cycles) {
   SetLCD_status();
+  // HBlank DMA: one 16-byte chunk per HBlank while mode 0 is active
+  if (m_hdmaActive && m_hdmaHBlankMode) {
+    if ((ReadMemory(0xFF41) & 0x3) == 0 && ReadMemory(0xFF44) < 144 &&
+        !m_hdmaLineDone) {
+      DoHDMAChunk();
+      m_hdmaLineDone = true;
+    }
+  }
   if (LCD_enabled()) {
     m_scalineCounter -= cycles;
   } else {
@@ -20,6 +28,7 @@ void GameBoy::UpdateGraphics(int cycles) {
   if (m_scalineCounter <= 0) {  // time to move to the next line
     byte currentLine = ReadMemory(0xFF44);
     m_scalineCounter = 456;  // reset the cycle count
+    m_hdmaLineDone = false;  // next line can take its HBlank chunk
     if (currentLine < 144) {
       DrawScanLine();
     }

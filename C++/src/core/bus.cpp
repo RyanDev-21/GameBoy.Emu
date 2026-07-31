@@ -27,6 +27,12 @@ void GameBoy::ReadRom(char const* filePath) {
 
   m_isGBC =
       (m_CartridgeMemory[0x143] == 0x80 || m_CartridgeMemory[0x143] == 0xC0);
+
+  // The boot ROM leaves register A = 0x11 when booting in CGB mode (0x01 on
+  // DMG). Pokemon Crystal checks this at _Start ($016E: CP $11) and sets its
+  // hCGB flag accordingly; with the wrong value it shows the "This Game Pak
+  // is designed only for use on the Game Boy Color" screen and loops.
+  m_RegisterAF.reg = m_isGBC ? 0x11B0 : 0x01B0;
 }
 
 void GameBoy::WriteMemory(word address, byte data) {
@@ -97,8 +103,21 @@ void GameBoy::WriteMemory(word address, byte data) {
   // for SGB
   else if (address == 0xFF4F) {
     WriteVBK(data);
+    m_rom[0xFF4F] = data;  // readable register; stored for read-back
   } else if (address == 0xFF70) {
     WriteSVBK(data);
+    m_rom[0xFF70] = data;  // readable register; stored for read-back
+  }
+  // in CGB mode FF47-FF4A alias the BCPS/BCPD/OCPS/OCPD palette registers;
+  // on DMG they remain the BGP/OBP0/OBP1 gray-palette registers (m_rom[])
+  else if (address == 0xFF47 && m_isGBC) {
+    WriteBCPS(data);
+  } else if (address == 0xFF48 && m_isGBC) {
+    WriteBCPD(data);
+  } else if (address == 0xFF49 && m_isGBC) {
+    WriteOCPS(data);
+  } else if (address == 0xFF4A && m_isGBC) {
+    WriteOCPD(data);
   } else if (address == 0xFF68) {
     WriteBCPS(data);
   } else if (address == 0xFF69) {
@@ -109,6 +128,35 @@ void GameBoy::WriteMemory(word address, byte data) {
     WriteOCPD(data);
   } else if (address == 0xFF4D) {
     key_1 = (key_1 & 0x80) | (data & 0x01);
+  }
+  // HDMA source/dest address registers (high bytes); low nibbles masked
+  else if (address == 0xFF51) {
+    m_rom[0xFF51] = data;
+  } else if (address == 0xFF52) {
+    m_rom[0xFF52] = data;
+  } else if (address == 0xFF53) {
+    m_rom[0xFF53] = data;
+  } else if (address == 0xFF54) {
+    m_rom[0xFF54] = data;
+  } else if (address == 0xFF55) {
+    m_rom[0xFF55] = data;
+    if (data & 0x80) {
+      // HBlank DMA: one 16-byte chunk is copied during each HBlank
+      m_hdmaActive = true;
+      m_hdmaHBlankMode = true;
+      m_hdmaLineDone = false;
+      m_hdmaRemaining = (word)(data & 0x7F) + 1;
+    } else {
+      // General purpose DMA: copy the whole block immediately
+      m_hdmaActive = true;
+      m_hdmaHBlankMode = false;
+      m_hdmaRemaining = (word)(data & 0x7F) + 1;
+      while (m_hdmaRemaining > 0) {
+        DoHDMAChunk();
+      }
+      m_hdmaActive = false;
+      m_rom[0xFF55] = 0xFF;  // 0xFF = transfer finished
+    }
   }
   // for writing data for GBC
   else if (address >= 0x8000 && address <= 0x9FFF) {
@@ -176,6 +224,16 @@ byte GameBoy::ReadMemory(word address) const {
     return m_wram[current_wramBank][address - 0xD000];
   } else if (address == 0xFF4D) {
     return key_1;
+  }
+  // in CGB mode FF47-FF4A alias the BCPS/BCPD/OCPS/OCPD palette registers
+  else if (address == 0xFF47 && m_isGBC) {
+    return m_BGPaletteIndex;
+  } else if (address == 0xFF48 && m_isGBC) {
+    return m_BGPalette[m_BGPaletteIndex];
+  } else if (address == 0xFF49 && m_isGBC) {
+    return m_OBJPaletteIndex;
+  } else if (address == 0xFF4A && m_isGBC) {
+    return m_OBJPalette[m_OBJPaletteIndex];
   }
   // others region? return
   else {
@@ -347,5 +405,31 @@ void GameBoy::WriteOCPD(byte data) {
   // m_OBJPalette max size is 0x40 so we have to mask it
   if (m_autoIncOBJPalette) {
     m_OBJPaletteIndex = (m_OBJPaletteIndex + 1) & 0x3F;
+  }
+}
+
+// Copies a single 16-byte chunk from the HDMA source to the VRAM destination,
+// then advances the source/dest pointers by 16.
+// Source is an absolute address:      (FF51<<8) | (FF52 & 0xF0)
+// Destination is an offset from VRAM: 0x8000 | ((FF53 & 0x1F) << 8) | (FF54 &
+// 0xF0)
+void GameBoy::DoHDMAChunk() {
+  word src = ((word)m_rom[0xFF51] << 8) | (m_rom[0xFF52] & 0xF0);
+  word dst =
+      0x8000 | (((word)(m_rom[0xFF53] & 0x1F) << 8) | (m_rom[0xFF54] & 0xF0));
+  for (int i = 0; i < 16; i++) {
+    WriteMemory(dst + i, ReadMemory(src + i));
+  }
+  src += 16;
+  dst += 16;
+  m_rom[0xFF51] = (byte)(src >> 8);
+  m_rom[0xFF52] = (byte)(src & 0xFF);
+  word dstOffset = dst - 0x8000;
+  m_rom[0xFF53] = (byte)(dstOffset >> 8);
+  m_rom[0xFF54] = (byte)(dstOffset & 0xFF);
+  m_hdmaRemaining--;
+  if (m_hdmaRemaining == 0) {
+    m_hdmaActive = false;
+    m_rom[0xFF55] = 0xFF;  // 0xFF = transfer finished
   }
 }

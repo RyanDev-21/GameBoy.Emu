@@ -58,6 +58,12 @@ class GameBoy {
   bool m_autoIncOBJPalette;
   bool m_doubleSpeed;
 
+  // HDMA (FF51-FF55) state; the source/dest registers live in m_rom[0xFF51-54]
+  word m_hdmaRemaining;  // 16-byte chunks left to transfer
+  bool m_hdmaActive;
+  bool m_hdmaHBlankMode;  // true = HBlank DMA, false = general purpose DMA
+  bool m_hdmaLineDone;    // chunk already transferred on this scanline
+
   void PushWordToStack(word data);
   word PopWordFromStack();
   void ScreenReset();
@@ -141,6 +147,7 @@ class GameBoy {
   void WriteBCPD(byte data);  // data
   void WriteOCPS(byte data);  // index
   void WriteOCPD(byte data);  // data
+  void DoHDMAChunk();
   void ToggleDoubleSpeed();
 
  public:

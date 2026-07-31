@@ -1,3 +1,5 @@
+#include <cstdio>
+
 #include "GameBoy.hpp"
 
 void GameBoy::RequestInterrupt(int id) {

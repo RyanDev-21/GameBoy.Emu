@@ -44,7 +44,11 @@ GameBoy::GameBoy()
       m_BGPaletteIndex(0),
       m_OBJPaletteIndex(0),
       m_autoIncBGPalette(false),
-      m_autoIncOBJPalette(false) {
+      m_autoIncOBJPalette(false),
+      m_hdmaRemaining(0),
+      m_hdmaActive(false),
+      m_hdmaHBlankMode(false),
+      m_hdmaLineDone(false) {
   m_stackPointer.reg = 0xFFFE;
   memset(&m_RTCLatch, 0, sizeof(m_RTCLatch));
   memset(&m_RTCregs, 0, sizeof(m_RTCregs));
@@ -54,8 +58,16 @@ GameBoy::GameBoy()
   memset(&m_SerialOutput, 0, sizeof(m_SerialOutput));
   memset(&m_vram, 0, sizeof(m_vram));
   memset(&m_wram, 0, sizeof(m_wram));
-  memset(&m_BGPalette, 0, sizeof(m_BGPalette));
-  memset(&m_OBJPalette, 0, sizeof(m_OBJPalette));
+  // CGB boot ROM initializes all background colors to white (RGB555 0x7FFF).
+  // Without this, the title screen of games that rely on the default palette
+  // (e.g. Pokemon Crystal) renders all-black.
+  for (size_t i = 0; i < sizeof(m_BGPalette); i += 2) {
+    m_BGPalette[i] = 0xFF;
+    m_BGPalette[i + 1] = 0x7F;
+    m_OBJPalette[i] = 0xFF;
+    m_OBJPalette[i + 1] = 0x7F;
+  }
+  m_OBJPalette[0] = 0x00;  // boot ROM only sets OBJ0 color #0 low byte
   m_SerialIndex = 0;
   m_RestartDetected = false;
 
@@ -95,8 +107,8 @@ GameBoy::GameBoy()
 int GameBoy::Update() {
   int cycles = NextOpCodeExcute();
   UpdateTimers(cycles);
-  // int ppuCycles = m_doubleSpeed ? cycles / 2 : cycles;
-  UpdateGraphics(cycles);
+  int ppuCycles = m_doubleSpeed ? cycles / 2 : cycles;
+  UpdateGraphics(ppuCycles);
   DoInterrupts();
   return cycles;
 }
@@ -137,6 +149,12 @@ void GameBoy::RunTestMode(int maxFrames) {
   }
   Debug::Print("Done. Screen output:\n\n");
   Debug::DumpScreenASCII((const byte*)m_screenData);
+  {
+    FILE* f = fopen("/tmp/crystal_shot.ppm", "wb");
+    fprintf(f, "P6\n160 144\n255\n");
+    fwrite(m_screenData, 1, 160 * 144 * 4, f);
+    fclose(f);
+  }
   Debug::PrintSerialOutput((const char*)m_SerialOutput);
 }
 
