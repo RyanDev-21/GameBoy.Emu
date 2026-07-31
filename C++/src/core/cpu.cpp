@@ -55,7 +55,14 @@ int GameBoy::ExcuteOpcode(byte opcode) {
       CPU_8bit_RRC(m_RegisterAF.hi);
       m_RegisterAF.lo &= ~(1 << FLAG_Z);
       return 4;
-    case 0x10: m_programCounter++; return 4;
+    // this one behave diff based on the dmg and gbc
+    case 0x10: {
+      m_programCounter++;
+      if (m_isGBC && (m_rom[KEY_1] & 0x1)) {
+        ToggleDoubleSpeed();
+      }
+      return 4;
+    }
     case 0x11: CPU_16bit_MemToReg(m_RegisterDE); return 12;
     case 0x12: CPU_8bit_RegToMem(m_RegisterDE, m_RegisterAF.hi, NONE); return 8;
     case 0x13: m_RegisterDE.reg++; return 8;
@@ -1144,4 +1151,19 @@ bool GameBoy::CPU_8bit_JP_2Byte_Imme(CC cc) {
 void GameBoy::CPU_8bit_Restart(byte addr) {
   PushWordToStack(m_programCounter);
   m_programCounter = addr;
+}
+
+// for GBC version
+// 0xFF4D(key_1) is the register for
+// speed boost and stuff
+// bit-7:current_speed(0=normal,1=double)
+// bit 0: prepare switch(0=no request,1=request)
+// bit 1-6 :unused
+// this function will get called when the key_1 bit 0 is 1
+void GameBoy::ToggleDoubleSpeed() {
+  byte key_1 = ReadMemory(0xFF4D);
+  key_1 ^= 0x80;   // speed bit
+  key_1 &= ~0x01;  // clear request bit
+  m_rom[0xFF4D] = key_1;
+  m_doubleSpeed = (key_1 & 0x80) != 0;
 }

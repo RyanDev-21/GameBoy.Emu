@@ -175,23 +175,6 @@ void GameBoy::RenderTiles() {
     tileData = 0x8800;  // this memory region use signed byte
   }
 
-  // // check the window & background select bit
-  // if (false == usingWindow) {
-  //   // which background memory region
-  //   if ((status & 8) != 0) {  // check bit 3
-  //     backgroundMem = 0x9C00;
-  //   } else {
-  //     backgroundMem = 0x9800;
-  //   }
-  // } else {
-  //   // whcih window memory region
-  //   if ((status & 64) != 0) {  // check bit 6
-  //     backgroundMem = 0x9C00;
-  //   } else {
-  //     backgroundMem = 0x9800;
-  //   }
-  // }
-  //
   byte yPos = 0;
 
   if (!usingWindow) {
@@ -243,7 +226,19 @@ void GameBoy::RenderTiles() {
       // sig
       tileNum = (signed_byte)((byte)ReadMemory(tileAddress));
     }
-
+    // for GBC
+    byte tileAttr = 0;
+    byte tilePalette = 0;
+    bool tileVramBank = false;
+    bool tileHFlip = false;
+    bool tileVFlip = false;
+    if (m_isGBC) {
+      tileAttr = m_vram[1][tileAddress - 0x8000];
+      tilePalette = tileAttr & 0x7;
+      tileVramBank = (tileAttr >> 3) & 0x1;
+      tileHFlip = (tileAttr >> 5) & 0x1;
+      tileVFlip = (tileAttr >> 6) & 0x1;
+    }
     word tileLocation = tileData;
     if (unsig) {
       tileLocation += (tileNum * 16);
@@ -255,40 +250,63 @@ void GameBoy::RenderTiles() {
       // so we get the actual address from 0x8800
       tileLocation += (tileNum + 128) * 16;
     }
+
     // find the tile index of the current scanline to get the tileData
     byte index = localY % 8;
+    if (m_isGBC && tileVFlip) {
+      index = 7 - index;
+    }
     index *= 2;  // as two byte are taken for color bit in memory
-    byte data1 = ReadMemory(tileLocation + index);
-    byte data2 = ReadMemory(tileLocation + index + 1);
-
+    byte data1, data2;
+    if (m_isGBC && tileVramBank) {
+      data1 = m_vram[1][tileLocation + index - 0x8000];
+      data2 = m_vram[1][tileLocation + index + 1 - 0x8000];
+    } else {
+      data1 = ReadMemory(tileLocation + index);
+      data2 = ReadMemory(tileLocation + index + 1);
+    }
     // pixel 0 correspond to data1 & data2 's bit 7
     // pixel 1 bit 6 ...
     byte colorBit = xPos % 8;
-    colorBit -= 7;
-    colorBit *= -1;
+    if (m_isGBC && tileHFlip) {
+    } else {
+      colorBit -= 7;
+      colorBit *= -1;
+    }
     int colorNum = ((data2 >> colorBit) & 1) << 1;
     colorNum |= (data1 >> colorBit) & 1;
-    // get actual color  based on the colorNum and colorPalette
-    byte color = ReadColor(colorNum, 0xFF47);
     int red = 0;
     int green = 0;
     int blue = 0;
-    switch (color) {
-      case WHITE:
-        red = 255;
-        green = 255;
-        blue = 255;
-        break;
-      case LIGHT_GRAY:
-        red = 0xCC;
-        green = 0xCC;
-        blue = 0xCC;
-        break;
-      case DARK_GRAY:
-        red = 0x77;
-        green = 0x77;
-        blue = 0x77;
-        break;
+
+    if (m_isGBC) {
+      if (colorNum == 0) {
+        continue;
+      }
+      GBCcolor color = ReadColorGBC(colorNum, m_BGPalette, tilePalette);
+      red = color.r;
+      green = color.g;
+      blue = color.b;
+    } else {
+      // get actual color  based on the colorNum and colorPalette
+      byte color = ReadColor(colorNum, 0xFF47);
+      switch (color) {
+        case WHITE:
+          red = 255;
+          green = 255;
+          blue = 255;
+          break;
+        case LIGHT_GRAY:
+          red = 0xCC;
+          green = 0xCC;
+          blue = 0xCC;
+          break;
+        case DARK_GRAY:
+          red = 0x77;
+          green = 0x77;
+          blue = 0x77;
+          break;
+      }
     }
     // read the current pixel or lcd scanline coord
     byte finally = ReadMemory(0xFF44);
@@ -353,6 +371,26 @@ COLOUR GameBoy::ReadColor(int colorNum, word address) {
   return res;
 }
 
+GBCcolor GameBoy::ReadColorGBC(int colorNum, byte palette[], byte paletteIdx) {
+  // each color have 5 bit
+  //  each palette has 4 colors and each color is 2 bytes (15bytes +1unsued)
+  byte offset = (paletteIdx * 8) + (colorNum * 2);
+  byte lo = palette[offset];
+  byte hi = palette[offset + 1];
+  // rgb555 means each is 5 bit(naming convension lol!!!!)
+  word rgb555 = (hi << 8) | lo;
+  byte r5 = rgb555 & 0x1F;          // first 5 bit
+  byte g5 = (rgb555 >> 5) & 0x1F;   // second 5 bit
+  byte b5 = (rgb555 >> 10) & 0x1F;  // third 5 bit
+  GBCcolor result{};
+  // screenData only expects the 8-bit value so
+  // need to upscale it
+  result.r = (r5 * 255) / 31;
+  result.g = (g5 * 255) / 31;
+  result.b = (b5 * 255) / 31;
+  return result;
+}
+
 // Spirte RAM region:0x8000-0x8FFF
 // Sprite Attri region:0xFE00-0xFE9F
 void GameBoy::RenderSprites() {
@@ -380,6 +418,16 @@ void GameBoy::RenderSprites() {
                               // bit 4 palette number (0=0xFF48,1=0xFF49)
     flipY = ((attributes & 64) != 0) ? true : false;
     flipX = ((attributes & 32) != 0) ? true : false;
+    // bit 7: priority        (same as DMG)
+    // bit 6: y flip          (same as DMG)
+    // bit 5: x flip          (same as DMG)
+    // bit 4: DMG palette select (ignored on GBC)
+    // bit 3: tile VRAM bank  (GBC only — which VRAM bank the tile pixel data
+    // lives in) bit 0-2: GBC palette number (GBC only — which of 8 OBJ
+    // palettes, replaces bit 4's binary choice) GBC specific fields
+    byte spritePalette = attributes & 0x7;
+    bool spritevramBank = (attributes >> 3) & 0x01;
+
     byte scanline = ReadMemory(0xFF44);
     int ySize = 8;
     if (use8x16) {
@@ -407,8 +455,14 @@ void GameBoy::RenderSprites() {
       //.....
       // Row15:0x8000+(tileLocation*16)+30;
       word tileAddress = 0x8000 + (tileLocation * 16) + line;
-      byte data1 = ReadMemory(tileAddress);
-      byte data2 = ReadMemory(tileAddress + 1);
+      byte data1, data2;
+      if (m_isGBC && spritevramBank) {
+        data1 = m_vram[1][tileAddress - 0x8000];
+        data2 = m_vram[1][tileAddress + 1 - 0x8000];
+      } else {
+        data1 = ReadMemory(tileAddress);
+        data2 = ReadMemory(tileAddress + 1);
+      }
 
       // now start the horizontal pixel
       //  the reason backward is because of how the colorbit map to pixel bit
@@ -422,33 +476,49 @@ void GameBoy::RenderSprites() {
         // same as tile pixel
         int colorNum = ((data2 >> colorBit) & 1) << 1;
         colorNum |= (data1 >> colorBit) & 1;
-        word colorAddress = ((attributes & 16) != 0)
-                                ? 0xFF49
-                                : 0xFF48;  // check the bit 4 of attributes
-        COLOUR color = ReadColor(colorNum, colorAddress);
-        if (color == WHITE) {
-          // skip this current loop
-          // why skip: the white is used for transparency
-          continue;
-        }
+
         int red = 0;
         int green = 0;
         int blue = 0;
-        // only handle the two Enum
-        // Cuz other two are already handled by default duhhhhhhhhhh
-        switch (color) {
-          case LIGHT_GRAY:
-            red = 0xCC;
-            green = 0xCC;
-            blue = 0xCC;
-            break;
-          case DARK_GRAY:
-            red = 0x77;
-            green = 0x77;
-            blue = 0x77;
-            break;
-        }
+        if (m_isGBC) {
+          if (colorNum == 0) {
+            continue;
+          }
+          GBCcolor color = ReadColorGBC(colorNum, m_OBJPalette, spritePalette);
+          red = color.r;
+          green = color.g;
+          blue = color.b;
+        } else {
+          word colorAddress = ((attributes & 16) != 0)
+                                  ? 0xFF49
+                                  : 0xFF48;  // check the bit 4 of attributes
+          COLOUR color = ReadColor(colorNum, colorAddress);
+          if (color == 0) {
+            // skip this current loop
+            // why skip: the white is used for transparency
+            continue;
+          }
 
+          // only handle the two Enum
+          // Cuz other two are already handled by default duhhhhhhhhhh
+          switch (color) {
+            case WHITE:
+              red = 255;
+              green = 255;
+              blue = 255;
+              break;
+            case LIGHT_GRAY:
+              red = 0xCC;
+              green = 0xCC;
+              blue = 0xCC;
+              break;
+            case DARK_GRAY:
+              red = 0x77;
+              green = 0x77;
+              blue = 0x77;
+              break;
+          }
+        }
         // I wrote the pixle to be in reverse but when drawing has to be from 0
         // to 7 so for example ; if pixelbit is 7 that means the xPix= 0;
         int xPix = 7 - pixelbit;

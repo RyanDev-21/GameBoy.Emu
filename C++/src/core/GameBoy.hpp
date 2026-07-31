@@ -8,42 +8,54 @@ class GameBoy {
  private:
   byte m_CartridgeMemory[0x200000];
   byte m_screenData[144][160][4];
+  byte m_ramBanks[0x8000];
   byte m_rom[0x10000];
+  byte m_vram[2][0x2000];
+  byte m_wram[8][0x1000];
+  TimePoint m_RTCtimeStamp;
+  int m_TimerCounter;
+  int m_scalineCounter;
+  int m_SerialIndex;
+  float m_RTCaccumulator;
+  word m_programCounter;
+  word m_DividerCounter;
   Register m_RegisterAF;
   Register m_RegisterBC;
   Register m_RegisterDE;
   Register m_RegisterHL;
-  word m_programCounter;
   Register m_stackPointer;
-  byte m_ramBanks[0x8000];
   byte current_ramBank;
   byte m_enableRAM;
   byte m_enableROM;
   byte current_romBank;
-
+  byte current_vramBank;
+  byte current_wramBank;
   byte m_MBC1;
   byte m_MBC2;
   byte m_MBC3;
   byte m_mbc3RamBankOrRtc;
-  bool m_mbc3RtcRegister;
   byte m_mbc3RtcIdx;
   byte m_RTCWriteState;
   byte m_RTCregs[5];
   byte m_RTCLatch[5];
-  float m_RTCaccumulator;
-  TimePoint m_RTCtimeStamp;
-  word m_DividerCounter;
   byte m_Div;
   byte m_joyPadState;
-  int m_TimerCounter;
-  int m_scalineCounter;
-
   byte m_SerialOutput[256];
+  bool m_mbc3RtcRegister;
   bool m_RestartDetected;
-  int m_SerialIndex;
   bool m_MasterInterrupt;
   bool m_EIpending;
   bool m_Halt;
+  bool m_isGBC;
+
+  // for color and stuff
+  byte m_BGPalette[0x40];
+  byte m_OBJPalette[0x40];
+  byte m_BGPaletteIndex;
+  byte m_OBJPaletteIndex;
+  bool m_autoIncBGPalette;
+  bool m_autoIncOBJPalette;
+  bool m_doubleSpeed;
 
   void PushWordToStack(word data);
   word PopWordFromStack();
@@ -72,6 +84,7 @@ class GameBoy {
   void RenderTiles();
   void RenderSprites();
   COLOUR ReadColor(int colorNum, word address);
+  GBCcolor ReadColorGBC(int colorNum, byte palette[], byte paletteIdx);
   byte GetJoyPadState() const;
   int NextOpCodeExcute();
   int ExcuteOpcode(byte opcode);
@@ -121,7 +134,13 @@ class GameBoy {
   void CPU_8bit_Restart(byte addr);
   word ReadWord();
   std::unique_ptr<saveData> convertFormat() const;
-  void RevertFormat(std::unique_ptr<saveData> data);
+  void WriteVBK(byte data);   // VRAM bank select
+  void WriteSVBK(byte data);  // WRAM bank select
+  void WriteBCPS(byte data);  // index
+  void WriteBCPD(byte data);  // data
+  void WriteOCPS(byte data);  // index
+  void WriteOCPD(byte data);  // data
+  void ToggleDoubleSpeed();
 
  public:
   GameBoy();

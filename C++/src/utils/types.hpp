@@ -5,7 +5,7 @@
 #define FLAG_N 6
 #define FLAG_H 5
 #define FLAG_C 4
-
+#define KEY_1 0xFF4D
 #include <chrono>
 
 using Clock = std::chrono::system_clock;
@@ -15,6 +15,13 @@ enum COLOUR {
   LIGHT_GRAY = 1,
   DARK_GRAY = 2,
   BLACK = 3,
+};
+typedef unsigned char byte;
+typedef unsigned short word;
+typedef signed short signed_word;
+typedef signed char signed_byte;
+struct GBCcolor {
+  byte r, g, b;
 };
 
 enum CC {
@@ -29,11 +36,6 @@ enum OP {
   INC = 2,
   DEC = 3,
 };
-
-typedef unsigned char byte;
-typedef unsigned short word;
-typedef signed short signed_word;
-typedef signed char signed_byte;
 
 union Register {
   word reg;
@@ -54,4 +56,12 @@ struct saveData {
 // For APU
 struct channel1 {};
 
+struct TileAttributes {
+  byte palette : 3;   // BG palette 0-7
+  byte vramBank : 1;  // which bank the tile DATA lives in
+  byte unused : 1;
+  byte hFlip : 1;
+  byte vFlip : 1;
+  byte priority : 1;  // BG-to-OAM priority
+};
 #endif

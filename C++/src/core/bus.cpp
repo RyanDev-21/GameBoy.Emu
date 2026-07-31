@@ -24,6 +24,9 @@ void GameBoy::ReadRom(char const* filePath) {
   } else if (mbcType >= 0x0F && mbcType <= 0x13) {
     m_MBC3 = true;
   }
+
+  m_isGBC =
+      (m_CartridgeMemory[0x143] == 0x80 || m_CartridgeMemory[0x143] == 0xC0);
 }
 
 void GameBoy::WriteMemory(word address, byte data) {
@@ -90,6 +93,33 @@ void GameBoy::WriteMemory(word address, byte data) {
   // no write allowed for these regions
   else if (address >= 0xFEA0 && address < 0xFEFF) {
   }
+
+  // for SGB
+  else if (address == 0xFF4F) {
+    WriteVBK(data);
+  } else if (address == 0xFF70) {
+    WriteSVBK(data);
+  } else if (address == 0xFF68) {
+    WriteBCPS(data);
+  } else if (address == 0xFF69) {
+    WriteBCPD(data);
+  } else if (address == 0xFF69) {
+    WriteOCPS(data);
+  } else if (address == 0xFF6A) {
+    WriteOCPD(data);
+  }
+
+  // for writing data for GBC
+  else if (address >= 0x8000 && address <= 0x9FFF) {
+    m_vram[current_vramBank][address - 0x8000] = data;
+  }
+
+  else if (address >= 0xC000 && address <= 0xCFFF) {
+    m_wram[0][address - 0xC000] = data;
+  } else if (address >= 0xD000 && address <= 0xDFFF) {
+    m_wram[current_wramBank][address - 0xD000] = data;
+  }
+
   // others
   else {
     m_rom[address] = data;
@@ -130,6 +160,19 @@ byte GameBoy::ReadMemory(word address) const {
 
   else if (address == 0xFF04) {
     return m_Div;
+  }
+
+  // for GBC
+  else if (address >= 0x8000 && address <= 0x9FFF) {
+    return m_vram[current_vramBank][address - 0x8000];
+  }
+
+  else if (address >= 0xC000 && address <= 0xCFFF) {
+    return m_wram[0][address - 0xC000];  // this is the fixed acccess
+  }
+
+  else if (address >= 0xD000 && address <= 0xDFFF) {
+    return m_wram[current_wramBank][address - 0xD000];
   }
 
   // others region? return
@@ -266,3 +309,41 @@ byte GameBoy::ReadRTCRegister() const {
   byte idx = m_mbc3RtcIdx - 0x08;
   return m_RTCregs[idx];
 };
+
+void GameBoy::WriteVBK(byte data) {
+  current_vramBank = data & 0x01;
+}
+
+void GameBoy::WriteSVBK(byte data) {
+  byte bank = data & 0x07;
+  // if zero has to set to 1
+  current_wramBank = (bank == 0) ? 1 : bank;
+}
+
+void GameBoy::WriteBCPS(byte data) {
+  m_BGPaletteIndex = data & 0x3F;
+  // auto inc or not is check by the 7 bit last bit
+  m_autoIncBGPalette = (data & 0x80) != 0;
+}
+
+void GameBoy::WriteBCPD(byte data) {
+  m_BGPalette[m_BGPaletteIndex] = data;
+  // m_BGPalette max size is 0x40 so we have to mask it
+  if (m_autoIncBGPalette) {
+    m_BGPaletteIndex = (m_BGPaletteIndex + 1) & 0x4F;
+  }
+}
+
+void GameBoy::WriteOCPS(byte data) {
+  m_OBJPaletteIndex = data & 0x3F;
+  // auto inc or not is check by the 7 bit last bit
+  m_autoIncOBJPalette = (data & 0x80) != 0;
+}
+
+void GameBoy::WriteOCPD(byte data) {
+  m_OBJPalette[m_OBJPaletteIndex] = data;
+  // m_OBJPalette max size is 0x40 so we have to mask it
+  if (m_autoIncOBJPalette) {
+    m_OBJPaletteIndex = (m_OBJPaletteIndex + 1) & 0x4F;
+  }
+}
