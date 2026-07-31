@@ -19,6 +19,9 @@ GameBoy::GameBoy()
       m_RegisterHL{.reg = 0x014D},
       current_romBank(1),
       current_ramBank(0),
+      current_vramBank(0),
+      current_wramBank(1),
+
       m_MBC1(false),
       m_MBC2(false),
       m_MBC3(false),
@@ -35,7 +38,13 @@ GameBoy::GameBoy()
       m_scalineCounter(456),
       m_MasterInterrupt(false),
       m_EIpending(false),
-      m_Halt(false) {
+      m_Halt(false),
+      m_doubleSpeed(false),
+      key_1(0),
+      m_BGPaletteIndex(0),
+      m_OBJPaletteIndex(0),
+      m_autoIncBGPalette(false),
+      m_autoIncOBJPalette(false) {
   m_stackPointer.reg = 0xFFFE;
   memset(&m_RTCLatch, 0, sizeof(m_RTCLatch));
   memset(&m_RTCregs, 0, sizeof(m_RTCregs));
@@ -43,6 +52,10 @@ GameBoy::GameBoy()
   memset(&m_rom, 0, sizeof(m_rom));
   memset(&m_screenData, 0, sizeof(m_screenData));
   memset(&m_SerialOutput, 0, sizeof(m_SerialOutput));
+  memset(&m_vram, 0, sizeof(m_vram));
+  memset(&m_wram, 0, sizeof(m_wram));
+  memset(&m_BGPalette, 0, sizeof(m_BGPalette));
+  memset(&m_OBJPalette, 0, sizeof(m_OBJPalette));
   m_SerialIndex = 0;
   m_RestartDetected = false;
 
@@ -82,6 +95,7 @@ GameBoy::GameBoy()
 int GameBoy::Update() {
   int cycles = NextOpCodeExcute();
   UpdateTimers(cycles);
+  // int ppuCycles = m_doubleSpeed ? cycles / 2 : cycles;
   UpdateGraphics(cycles);
   DoInterrupts();
   return cycles;

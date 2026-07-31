@@ -133,7 +133,6 @@ void GameBoy::DoDMATransfer(byte address) {
 // bit 0 - BG Display  (0=Off, 1=On)
 void GameBoy::DrawScanLine() {
   byte status = ReadMemory(0xFF40);
-  Debug::Print("%d\n", status);
   if ((status & 1) != 0) {  // check bit 0
     RenderTiles();
   }
@@ -280,9 +279,6 @@ void GameBoy::RenderTiles() {
     int blue = 0;
 
     if (m_isGBC) {
-      if (colorNum == 0) {
-        continue;
-      }
       GBCcolor color = ReadColorGBC(colorNum, m_BGPalette, tilePalette);
       red = color.r;
       green = color.g;

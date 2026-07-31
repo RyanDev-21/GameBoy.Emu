@@ -47,6 +47,7 @@ class GameBoy {
   bool m_EIpending;
   bool m_Halt;
   bool m_isGBC;
+  byte key_1;
 
   // for color and stuff
   byte m_BGPalette[0x40];

@@ -103,12 +103,13 @@ void GameBoy::WriteMemory(word address, byte data) {
     WriteBCPS(data);
   } else if (address == 0xFF69) {
     WriteBCPD(data);
-  } else if (address == 0xFF69) {
-    WriteOCPS(data);
   } else if (address == 0xFF6A) {
+    WriteOCPS(data);
+  } else if (address == 0xFF6B) {
     WriteOCPD(data);
+  } else if (address == 0xFF4D) {
+    key_1 = (key_1 & 0x80) | (data & 0x01);
   }
-
   // for writing data for GBC
   else if (address >= 0x8000 && address <= 0x9FFF) {
     m_vram[current_vramBank][address - 0x8000] = data;
@@ -173,8 +174,9 @@ byte GameBoy::ReadMemory(word address) const {
 
   else if (address >= 0xD000 && address <= 0xDFFF) {
     return m_wram[current_wramBank][address - 0xD000];
+  } else if (address == 0xFF4D) {
+    return key_1;
   }
-
   // others region? return
   else {
     return m_rom[address];
@@ -330,7 +332,7 @@ void GameBoy::WriteBCPD(byte data) {
   m_BGPalette[m_BGPaletteIndex] = data;
   // m_BGPalette max size is 0x40 so we have to mask it
   if (m_autoIncBGPalette) {
-    m_BGPaletteIndex = (m_BGPaletteIndex + 1) & 0x4F;
+    m_BGPaletteIndex = (m_BGPaletteIndex + 1) & 0x3F;
   }
 }
 
@@ -344,6 +346,6 @@ void GameBoy::WriteOCPD(byte data) {
   m_OBJPalette[m_OBJPaletteIndex] = data;
   // m_OBJPalette max size is 0x40 so we have to mask it
   if (m_autoIncOBJPalette) {
-    m_OBJPaletteIndex = (m_OBJPaletteIndex + 1) & 0x4F;
+    m_OBJPaletteIndex = (m_OBJPaletteIndex + 1) & 0x3F;
   }
 }
