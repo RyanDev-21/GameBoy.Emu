@@ -13,21 +13,22 @@ void GameBoy::RequestInterrupt(int id) {
 // Bit 1:LCD
 // Bit 2:Timer
 // Bit 3:Joypad
-void GameBoy::DoInterrupts() {
+byte GameBoy::DoInterrupts() {
   if (m_MasterInterrupt) {
     byte req = ReadMemory(0xFF0F);
-    byte enabled = ReadMemory(0xFFFF);
     if (req > 0) {
+      byte enabled = ReadMemory(0xFFFF);
       for (int i = 0; i < 5; i++) {
         if ((req & (1 << i)) != 0) {
           if ((enabled & (1 << i)) != 0) {
             ServiceInterrupt(i);
-            break;
+            return 20;
           }
         }
       }
     }
   }
+  return 0;
 }
 
 // this will reset the master and req register and

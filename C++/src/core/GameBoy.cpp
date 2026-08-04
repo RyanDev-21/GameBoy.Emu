@@ -106,11 +106,11 @@ GameBoy::GameBoy()
 
 int GameBoy::Update() {
   int cycles = NextOpCodeExcute();
+  cycles += DoInterrupts();
   UpdateTimers(cycles);
   int ppuCycles = m_doubleSpeed ? cycles / 2 : cycles;
   UpdateGraphics(ppuCycles);
-  DoInterrupts();
-  return cycles;
+  return ppuCycles;
 }
 
 const byte* GameBoy::GetScreenData() const {
@@ -147,6 +147,16 @@ void GameBoy::RunTestMode(int maxFrames) {
                             ReadMemory(0xFF0F), ReadMemory(0xFFFF));
     }
   }
+  // Printing out to reason
+  fprintf(stderr, "PC=%04x ,LY=%02x, LCDC=%02x, SCY =%02x,WY=%02x,WX=%02x\n",
+          ReadMemory(m_programCounter), ReadMemory(0xFF44), ReadMemory(0xFF40),
+          ReadMemory(0xFF42), ReadMemory(0xFF4A), ReadMemory(0xFF4B));
+
+  for (int i = 0; i < 0x40; i += 2) {
+    fprintf(stderr, "%02x%02x", m_BGPalette[i + 1], m_BGPalette[i]);
+    fprintf(stderr, "\nhdmaActive=%d hdmaRemaining=%d hdmaHBlank=%d\n",
+            m_hdmaActive, m_hdmaRemaining, m_hdmaHBlankMode);
+  };
   Debug::Print("Done. Screen output:\n\n");
   Debug::DumpScreenASCII((const byte*)m_screenData);
   {
@@ -195,3 +205,19 @@ void GameBoy::LoadRam(const char* loadPath) {
   std::chrono::duration<float> elasped_time = (Clock::now() - m_RTCtimeStamp);
   fastForwardRTC(elasped_time.count());
 }
+
+word* GameBoy::getBG_Palette() const {
+  word* data = new word[32];
+  for (int i = 0; i < 0x40; i += 2) {
+    data[i / 2] = (m_BGPalette[i + 1] << 8) | (m_BGPalette[i]);
+  }
+  return data;
+}
+
+const byte* GameBoy::GetVram(int bank) {
+  return m_vram[bank];
+}
+
+// word* GameBoy::getOBJ_Palette() const {
+//   word* data = new word[32];
+// }

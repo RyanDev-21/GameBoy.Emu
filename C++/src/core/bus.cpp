@@ -24,14 +24,13 @@ void GameBoy::ReadRom(char const* filePath) {
   } else if (mbcType >= 0x0F && mbcType <= 0x13) {
     m_MBC3 = true;
   }
-
+  // bit 7 set for GCB compatible and DMG also
+  // bit 7 and 6 set for only CGB
   m_isGBC =
       (m_CartridgeMemory[0x143] == 0x80 || m_CartridgeMemory[0x143] == 0xC0);
 
   // The boot ROM leaves register A = 0x11 when booting in CGB mode (0x01 on
-  // DMG). Pokemon Crystal checks this at _Start ($016E: CP $11) and sets its
-  // hCGB flag accordingly; with the wrong value it shows the "This Game Pak
-  // is designed only for use on the Game Boy Color" screen and loops.
+  // DMG).
   m_RegisterAF.reg = m_isGBC ? 0x11B0 : 0x01B0;
 }
 
@@ -103,10 +102,10 @@ void GameBoy::WriteMemory(word address, byte data) {
   // for SGB
   else if (address == 0xFF4F) {
     WriteVBK(data);
-    m_rom[0xFF4F] = data;  // readable register; stored for read-back
+    m_rom[0xFF4F] = data;
   } else if (address == 0xFF70) {
     WriteSVBK(data);
-    m_rom[0xFF70] = data;  // readable register; stored for read-back
+    m_rom[0xFF70] = data;
   }
   // in CGB mode FF47-FF4A alias the BCPS/BCPD/OCPS/OCPD palette registers;
   // on DMG they remain the BGP/OBP0/OBP1 gray-palette registers (m_rom[])
@@ -128,17 +127,23 @@ void GameBoy::WriteMemory(word address, byte data) {
     WriteOCPD(data);
   } else if (address == 0xFF4D) {
     key_1 = (key_1 & 0x80) | (data & 0x01);
+    m_rom[0xFF4D] = key_1;
   }
   // HDMA source/dest address registers (high bytes); low nibbles masked
+  // thes tow are source addr
   else if (address == 0xFF51) {
     m_rom[0xFF51] = data;
   } else if (address == 0xFF52) {
     m_rom[0xFF52] = data;
-  } else if (address == 0xFF53) {
+  }
+  // this two reg is destination addr
+  else if (address == 0xFF53) {
     m_rom[0xFF53] = data;
   } else if (address == 0xFF54) {
     m_rom[0xFF54] = data;
-  } else if (address == 0xFF55) {
+  }
+  // transfer length/mode/start reg
+  else if (address == 0xFF55) {
     m_rom[0xFF55] = data;
     if (data & 0x80) {
       // HBlank DMA: one 16-byte chunk is copied during each HBlank
@@ -223,7 +228,7 @@ byte GameBoy::ReadMemory(word address) const {
   else if (address >= 0xD000 && address <= 0xDFFF) {
     return m_wram[current_wramBank][address - 0xD000];
   } else if (address == 0xFF4D) {
-    return key_1;
+    return m_rom[0xFF4D];
   }
   // in CGB mode FF47-FF4A alias the BCPS/BCPD/OCPS/OCPD palette registers
   else if (address == 0xFF47 && m_isGBC) {
@@ -381,6 +386,7 @@ void GameBoy::WriteSVBK(byte data) {
 }
 
 void GameBoy::WriteBCPS(byte data) {
+  // Bits:0-5 (0-63)
   m_BGPaletteIndex = data & 0x3F;
   // auto inc or not is check by the 7 bit last bit
   m_autoIncBGPalette = (data & 0x80) != 0;

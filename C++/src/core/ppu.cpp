@@ -67,20 +67,18 @@ void GameBoy::SetLCD_status() {
     m_rom[0xFF44] = 0;  // scaline has to set to  0
     status &= 252;      // make the first two bit to 0
     status |= 1;        // turn on the first bit
+    status &= ~4;
+    m_previousStatusLine = false;
     WriteMemory(0xFF41, status);
     return;
   }
   byte currentLine = ReadMemory(0xFF44);
   byte currentMode = status & 0x3;
   byte mode = 0;
-  bool reqInt = false;
 
   // v-blank situation
   if (currentLine >= 144) {
-    mode = 1;                     // v-blank
-    status &= 252;                // make 0 to first two bit
-    status |= 1;                  // turn on first bit
-    reqInt = (status & 16) != 0;  // check interrupt
+    mode = 1;  // v-blank
   } else {
     int mode2Counts = 456 - 82;           // mode 2 use  82cycles
     int mode3Counts = mode2Counts - 172;  // mode 3 use 172 cycles
@@ -88,35 +86,38 @@ void GameBoy::SetLCD_status() {
     // search sprite situation
     if (m_scalineCounter >= mode2Counts) {
       mode = 2;
-      status &= 252;
-      status |= 2;
-      reqInt = (status & 32) != 0;
     }
 
     // transfer data to lcd driver situation
     else if (m_scalineCounter >= mode3Counts) {
       mode = 3;
-      status &= 252;
-      status |= 3;
-      // mode3 doesn't have interrupt
-
+      // mode 3 doesn't have interrupt
     } else {  // h-blank situation
       mode = 0;
-      status &= 252;
-      reqInt = (status & 8) != 0;
     }
   }
-  if (reqInt && (mode != currentMode)) {  //  mode switch
-    RequestInterrupt(1);                  // LCD interrupt
-  }
-  if (currentLine == ReadMemory(0xFF45)) {  // coincidence
-    status |= 4;                            // turn on the 2th bit
-    if ((status & 64) != 0) {               // if interrupt enabled
-      RequestInterrupt(1);
-    }
+  status = (status & 252) | mode;
+  bool lyc_match = (currentLine == ReadMemory(0xFF45));
+  if (lyc_match) {  // coincidence
+    status |= 4;    // turn on the 2th bit
   } else {
     status &= ~4;  // turn off  bit 2
   }
+  bool lyc_ie = ((status & (1 << 6)) != 0);
+  bool mode2_ie = ((status & (1 << 5)) != 0);
+  bool mode1_ie = ((status & (1 << 4)) != 0);
+  bool mode0_ie = ((status & (1 << 3)) != 0);
+
+  bool mode2_act = (mode == 2);
+  bool mode1_act = (mode == 1);
+  bool mode0_act = (mode == 0);
+
+  bool status_line = (lyc_match && lyc_ie) || (mode2_act && mode2_ie) ||
+                     (mode1_act && mode1_ie) || (mode0_act && mode0_ie);
+  if (status_line && !m_previousStatusLine) {
+    RequestInterrupt(1);  // request LCD interrupt
+  }
+  m_previousStatusLine = status_line;
   WriteMemory(0xFF41, status);
 }
 

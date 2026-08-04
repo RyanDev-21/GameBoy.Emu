@@ -7,24 +7,27 @@ int GameBoy::NextOpCodeExcute() {
       m_EIpending = false;
       m_MasterInterrupt = true;
     }
-    if (!m_MasterInterrupt) {
-      byte req = ReadMemory(0xFF0F);
-      byte enabled = ReadMemory(0xFFFF);
-      if ((req & enabled) != 0) {
-        m_Halt = false;
-      }
+    byte req = ReadMemory(0xFF0F);     // IF
+    byte enable = ReadMemory(0xFFFF);  // IE
+    if ((req & enable & 0x1F) != 0) {
+      m_Halt = false;
+      return 4;
     }
-    return 4;
   }
+  bool EIalarmThisCall = m_EIpending;
+  byte opcode = ReadMemory(m_programCounter);
 
-  if (m_EIpending) {
+  if (m_HaltBug) {
+    m_HaltBug = false;
+  } else {
+    m_programCounter++;
+  }
+  res = ExcuteOpcode(opcode);
+
+  if (EIalarmThisCall) {
     m_EIpending = false;
     m_MasterInterrupt = true;
   }
-
-  byte opcode = ReadMemory(m_programCounter);
-  m_programCounter++;
-  res = ExcuteOpcode(opcode);
 
   return res;
 }
@@ -184,10 +187,14 @@ int GameBoy::ExcuteOpcode(byte opcode) {
     case 0x74: CPU_8bit_RegToMem(m_RegisterHL, m_RegisterHL.hi, NONE); return 8;
     case 0x75: CPU_8bit_RegToMem(m_RegisterHL, m_RegisterHL.lo, NONE); return 8;
     case 0x76: {
-      if (!m_MasterInterrupt && !m_EIpending) {
+      if (!m_MasterInterrupt) {
         byte req = ReadMemory(0xFF0F);
         byte enabled = ReadMemory(0xFFFF);
-        if ((req & enabled) != 0) {
+        if ((req & enabled & 0x1F) != 0) {
+          m_HaltBug = true;
+          if (m_EIpending) {
+            m_programCounter--;
+          }
           return 4;
         }
       }
@@ -708,13 +715,13 @@ void GameBoy::CPU_8bit_OR(byte& reg, byte toOR, bool useImmediate) {
 bool GameBoy::CPU_JUMP_IMMEDIATE(bool condition, int flag, bool useCondition) {
   signed char n = (signed_byte)ReadMemory(m_programCounter);
   if (!useCondition) {
-    m_programCounter += n;
     m_programCounter++;
+    m_programCounter += n;
     return true;
   } else if ((((m_RegisterAF.lo & (1 << flag)) != 0) ? true : false) ==
              condition) {
-    m_programCounter += n;
     m_programCounter++;
+    m_programCounter += n;
     return true;
   }
   m_programCounter++;

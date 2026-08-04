@@ -17,7 +17,6 @@ class GameBoy {
   int m_scalineCounter;
   int m_SerialIndex;
   float m_RTCaccumulator;
-  word m_programCounter;
   word m_DividerCounter;
   Register m_RegisterAF;
   Register m_RegisterBC;
@@ -46,8 +45,10 @@ class GameBoy {
   bool m_MasterInterrupt;
   bool m_EIpending;
   bool m_Halt;
+  bool m_HaltBug;
   bool m_isGBC;
   byte key_1;
+  bool m_previousStatusLine;  // for  interrupt
 
   // for color and stuff
   byte m_BGPalette[0x40];
@@ -83,7 +84,7 @@ class GameBoy {
   byte GetClockFeq() const;
   void SetClockFeq();
   void RequestInterrupt(int id);
-  void DoInterrupts();
+  byte DoInterrupts();
   void ServiceInterrupt(int interrupt);
   bool LCD_enabled();
   void SetLCD_status();
@@ -151,6 +152,7 @@ class GameBoy {
   void ToggleDoubleSpeed();
 
  public:
+  word m_programCounter;
   GameBoy();
   void WriteMemory(word address, byte data);
   byte ReadMemory(word address) const;
@@ -167,6 +169,8 @@ class GameBoy {
   void RunTestMode(int maxFrames);
   bool SaveRam(const char* savPath);
   void LoadRam(const char* loadPath);
+  word* getBG_Palette() const;
+  word* getOBJ_Palette();
+  const byte* GetVram(int bank);
 };
-
 #endif
