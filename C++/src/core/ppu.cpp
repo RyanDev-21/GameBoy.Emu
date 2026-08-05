@@ -11,6 +11,25 @@
 // 144 visible scanline && 10 invisible scanline
 // Takes 456 cycles for 1 scanline to finish
 void GameBoy::UpdateGraphics(int cycles) {
+  if (LCD_enabled()) {
+    m_scalineCounter -= cycles;
+    if (m_scalineCounter <= 0) {  // time to move to the next line
+      byte currentLine = ReadMemory(0xFF44);
+      m_scalineCounter = 456;  // reset the cycle count
+      m_hdmaLineDone = false;  // next line can take its HBlank chunk
+      if (currentLine < 144) {
+        DrawScanLine();
+      }
+
+      m_rom[0xFF44]++;
+      currentLine = ReadMemory(0xFF44);
+      if (currentLine == 144) {  // about to enter v-blank
+        RequestInterrupt(0);
+      } else if (currentLine > 153) {  // reset to the top
+        m_rom[0xFF44] = 0;
+      }
+    }
+  }
   SetLCD_status();
   // HBlank DMA: one 16-byte chunk per HBlank while mode 0 is active
   if (m_hdmaActive && m_hdmaHBlankMode) {
@@ -18,26 +37,6 @@ void GameBoy::UpdateGraphics(int cycles) {
         !m_hdmaLineDone) {
       DoHDMAChunk();
       m_hdmaLineDone = true;
-    }
-  }
-  if (LCD_enabled()) {
-    m_scalineCounter -= cycles;
-  } else {
-    return;
-  }
-  if (m_scalineCounter <= 0) {  // time to move to the next line
-    byte currentLine = ReadMemory(0xFF44);
-    m_scalineCounter = 456;  // reset the cycle count
-    m_hdmaLineDone = false;  // next line can take its HBlank chunk
-    if (currentLine < 144) {
-      DrawScanLine();
-    }
-    m_rom[0xFF44]++;
-    currentLine = ReadMemory(0xFF44);
-    if (currentLine == 144) {  // about to enter v-blank
-      RequestInterrupt(0);
-    } else if (currentLine > 153) {  // reset to the top
-      m_rom[0xFF44] = 0;
     }
   }
 }
@@ -159,128 +158,92 @@ void GameBoy::DrawScanLine() {
 // ppu and we just draw whatever has at 0
 void GameBoy::RenderTiles() {
   word backgroundMem = 0;
-  word tileData = 0;
   byte status = ReadMemory(0xFF40);
-  bool unsig = false;
-  bool usingWindow = false;
+  byte scanline = ReadMemory(0xFF44);
+  bool unsig = (status & 16) != 0;
   byte scrollY = ReadMemory(0xFF42);
   byte scrollX = ReadMemory(0xFF43);
   byte windowY = ReadMemory(0xFF4A);
-  byte windowX =
-      ReadMemory(0xFF4B) - 7;  // in order for the ppu to prefetch the data
-
-  // check the window bit
-  if ((status & 32) != 0) {  // check bit 5
-    if (windowY <=
-        ReadMemory(0xFF44)) {  // only if y is less than or equal to scanline
-      usingWindow = true;
-    }
-  }
-  // check the tile data select bit
-  if ((status & 16) != 0) {  // check bit 4
-    tileData = 0x8000;
-    unsig = true;
-  } else {
-    tileData = 0x8800;  // this memory region use signed byte
-  }
-
-  byte yPos = 0;
-
-  if (!usingWindow) {
-    // just plus the background position with scanline
-    yPos = scrollY + ReadMemory(0xFF44);
-  } else {
-    // we have to reset the yPos  as we need to get the correct index for tile
-    // data
-    yPos = ReadMemory(0xFF44) - windowY;
-  }
+  int windowX =
+      (int)ReadMemory(0xFF4B) - 7;  // in order for the ppu to prefetch the data
 
   // draw the horizontal pixel
   for (int pixel = 0; pixel < 160; pixel++) {
-    byte xPos = scrollX + pixel;
+    bool windowEnabled = (status & 0x20) != 0;
+    bool isWindowPixel =
+        windowEnabled && (scanline >= windowY) && (pixel >= windowX);
+    byte xPos = 0;
     byte localY = 0;
-    if (usingWindow && pixel >= windowX) {  // at drawing window pixel
-      xPos = pixel - windowX;               // reset
-      localY = ReadMemory(0xFF44) - windowY;
+
+    if (isWindowPixel) {  // at drawing window pixel
+      int winX = pixel - windowX;
+      xPos = (winX < 0) ? 0 : (byte)(winX);
+      localY = scanline - windowY;
       // whcih window memory region
-      if ((status & 64) != 0) {  // check bit 6
-        backgroundMem = 0x9C00;
-      } else {
-        backgroundMem = 0x9800;
-      }
+      backgroundMem = (status & 0x40) ? 0x9C00 : 0x9800;
     } else {
       xPos = scrollX + pixel;
-      localY = ReadMemory(0xFF44) + scrollY;
-      if ((status & 8) != 0) {  // check bit 3
-        backgroundMem = 0x9C00;
-      } else {
-        backgroundMem = 0x9800;
-      }
+      localY = scanline + scrollY;
+      backgroundMem = (status & 0x08) ? 0x9C00 : 0x9800;
     }
 
     // horizontal tile index
     word tileCol = xPos / 8;
-    signed_word tileNum;
     // each tile is 8x8
     // so to get the tileRow index(current scanline pixel) we have to divide by
     // 8 to updated localY and multiply 32 to jump to corret index
-    word tileRow = (((byte)(localY / 8)) * 32);  // vertical tiles index
+    word tileRow = ((localY / 8) % 32) * 32;  // vertical tiles index
     // plus all three index and get the actual tileAddress
-    word tileAddress = backgroundMem + tileRow + tileCol;
-    if (unsig) {
-      //  unsig
-      //  as the signed_word is 16 bit it can handle the unsigned_byte(8 bit)
-      tileNum = (byte)ReadMemory(tileAddress);
-    } else {
-      // sig
-      tileNum = (signed_byte)((byte)ReadMemory(tileAddress));
-    }
+    word tileAddress = backgroundMem + tileRow + (tileCol % 32);
+    int8_t rawTile = (int8_t)ReadMemory(tileAddress);
+
     // for GBC
     byte tileAttr = 0;
     byte tilePalette = 0;
     bool tileVramBank = false;
     bool tileHFlip = false;
     bool tileVFlip = false;
+    bool tilePrio = false;
     if (m_isGBC) {
       tileAttr = m_vram[1][tileAddress - 0x8000];
       tilePalette = tileAttr & 0x7;
       tileVramBank = (tileAttr >> 3) & 0x1;
       tileHFlip = (tileAttr >> 5) & 0x1;
       tileVFlip = (tileAttr >> 6) & 0x1;
+      tilePrio = (tileAttr >> 7) & 1;
     }
-    word tileLocation = tileData;
+    word tileLocation;
     if (unsig) {
-      tileLocation += (tileNum * 16);
+      tileLocation = 0x8000 + ((byte)rawTile * 16);
     } else {
       // make the signed_word positive
       // for example;
       // signed_byte : -128 to 127
       //  -128 means the starting address 0;
       // so we get the actual address from 0x8800
-      tileLocation += (tileNum + 128) * 16;
+      tileLocation = 0x9000 + (rawTile * 16);
     }
 
     // find the tile index of the current scanline to get the tileData
-    byte index = localY % 8;
+    byte tileLine = localY % 8;
     if (m_isGBC && tileVFlip) {
-      index = 7 - index;
+      tileLine = 7 - tileLine;
     }
-    index *= 2;  // as two byte are taken for color bit in memory
+    tileLine *= 2;  // as two byte are taken for color bit in memory
     byte data1, data2;
-    if (m_isGBC && tileVramBank) {
-      data1 = m_vram[1][tileLocation + index - 0x8000];
-      data2 = m_vram[1][tileLocation + index + 1 - 0x8000];
+    if (m_isGBC) {
+      data1 = m_vram[tileVramBank ? 1 : 0][tileLocation + tileLine - 0x8000];
+      data2 =
+          m_vram[tileVramBank ? 1 : 0][tileLocation + tileLine + 1 - 0x8000];
     } else {
-      data1 = ReadMemory(tileLocation + index);
-      data2 = ReadMemory(tileLocation + index + 1);
+      data1 = ReadMemory(tileLocation + tileLine);
+      data2 = ReadMemory(tileLocation + tileLine + 1);
     }
     // pixel 0 correspond to data1 & data2 's bit 7
     // pixel 1 bit 6 ...
     byte colorBit = xPos % 8;
-    if (m_isGBC && tileHFlip) {
-    } else {
-      colorBit -= 7;
-      colorBit *= -1;
+    if (!(m_isGBC && tileHFlip)) {
+      colorBit = 7 - colorBit;
     }
     int colorNum = ((data2 >> colorBit) & 1) << 1;
     colorNum |= (data1 >> colorBit) & 1;
@@ -312,20 +275,25 @@ void GameBoy::RenderTiles() {
           green = 0x77;
           blue = 0x77;
           break;
+        case BLACK:
+          red = 0x00;
+          green = 0x00;
+          blue = 0x00;
+          break;
       }
     }
-    // read the current pixel or lcd scanline coord
-    byte finally = ReadMemory(0xFF44);
+
     // determine whether fall within the display region
-    if ((finally < 0 || finally > 143) ||
+    if ((scanline < 0 || scanline > 143) ||
         (pixel < 0 || pixel > 159)) {  // if not fall within display region
       continue;
     }
-
-    m_screenData[finally][pixel][0] = red;
-    m_screenData[finally][pixel][1] = green;
-    m_screenData[finally][pixel][2] = blue;
-    m_screenData[finally][pixel][3] = 0xFF;
+    m_bgIndex[pixel] = colorNum;
+    m_bgPrio[pixel] = (m_isGBC && tilePrio && colorNum != 0);
+    m_screenData[scanline][pixel][0] = red;
+    m_screenData[scanline][pixel][1] = green;
+    m_screenData[scanline][pixel][2] = blue;
+    m_screenData[scanline][pixel][3] = 0xFF;
   }
 }
 
@@ -335,46 +303,16 @@ void GameBoy::RenderTiles() {
 // 10:Dark Grey  bit 5-4
 // 11:Black bit 7-6
 COLOUR GameBoy::ReadColor(int colorNum, word address) {
-  COLOUR res = WHITE;
-  int hi = 0;
-  int lo = 0;
   byte colorPalette = ReadMemory(address);
-  switch (colorNum) {
-    case 0:
-      hi = 1;
-      lo = 0;
-      break;
-    case 1:
-      hi = 3;
-      lo = 2;
-      break;
-    case 2:
-      hi = 5;
-      lo = 4;
-      break;
-    case 3:
-      hi = 7;
-      lo = 6;
-      break;
+  byte color = (colorPalette >> (colorNum * 2)) & 0x03;
+  switch (color) {
+    case 0: return WHITE;
+
+    case 1: return LIGHT_GRAY;
+    case 2: return DARK_GRAY;
+    case 3: return BLACK;
   }
-
-  int colour = 0;
-  // lookup the colorbit in the color palette
-  // shift to right first to do mask
-  // shift to left to make the bit correct
-  colour = ((colorPalette >> hi) & 1) << 1;
-  // merge with low bit
-  colour |= (colorPalette >> lo) & 1;
-
-  // return enum based on the color type
-  switch (colour) {
-    case 0: res = WHITE; break;
-    case 1: res = LIGHT_GRAY; break;
-    case 2: res = DARK_GRAY; break;
-    case 3: res = BLACK; break;
-  }
-
-  return res;
+  return WHITE;
 }
 
 GBCcolor GameBoy::ReadColorGBC(int colorNum, byte palette[], byte paletteIdx) {
@@ -400,159 +338,144 @@ GBCcolor GameBoy::ReadColorGBC(int colorNum, byte palette[], byte paletteIdx) {
 // Spirte RAM region:0x8000-0x8FFF
 // Sprite Attri region:0xFE00-0xFE9F
 void GameBoy::RenderSprites() {
-  bool use8x16 = ((ReadMemory(0xFF40) & 4) != 0)
-                     ? true
-                     : false;  // this bit 4 in control lcd register tells
-                               // whether the sprite is 8x8 or 8x16
-  bool flipY = false;
-  bool flipX = false;
-  // each frame can render 40 sprite
-  for (int sprite = 39; sprite >= 0; sprite--) {
-    // each sprite takes 4 bytes
-    byte index = sprite * 4;
-    // each of this is 1 byte = total=4
-    byte yPos = ReadMemory(0xFE00 + index) - 16;
-    byte xPos = ReadMemory(0xFE00 + index + 1) - 8;
-    byte tileLocation = ReadMemory(0xFE00 + index +
-                                   2);  // this one is for sprite pattern number
-    byte attributes = ReadMemory(
-        0xFE00 + index + 3);  // this attri tells about the sprite
-                              // Attribute bit
-                              // bit 7 priority
-                              // bit 6 y flip
-                              // bit 5 x flip
-                              // bit 4 palette number (0=0xFF48,1=0xFF49)
-    flipY = ((attributes & 64) != 0) ? true : false;
-    flipX = ((attributes & 32) != 0) ? true : false;
-    // bit 7: priority        (same as DMG)
-    // bit 6: y flip          (same as DMG)
-    // bit 5: x flip          (same as DMG)
-    // bit 4: DMG palette select (ignored on GBC)
-    // bit 3: tile VRAM bank  (GBC only — which VRAM bank the tile pixel data
-    // lives in) bit 0-2: GBC palette number (GBC only — which of 8 OBJ
-    // palettes, replaces bit 4's binary choice) GBC specific fields
-    byte spritePalette = attributes & 0x7;
-    bool spritevramBank = (attributes >> 3) & 0x01;
-
-    byte scanline = ReadMemory(0xFF44);
-    int ySize = 8;
-    if (use8x16) {
-      ySize = 16;
+  bool use8x16 = ((ReadMemory(0xFF40) & 4) !=
+                  0);  // this bit 4 in control lcd register tells
+                       // whether the sprite is 8x8 or 8x16
+  byte scanline = ReadMemory(0xFF44);
+  // collect up to 10 sprites on this scanline, in OAM order.
+  int selected[10];
+  int numSelected = 0;
+  for (int i = 0; i < 40 && numSelected < 10; i++) {
+    int index = i * 4;
+    int yPos = (int)ReadMemory(0xFE00 + index) - 16;
+    int xPos = (int)ReadMemory(0xFE00 + index + 1) - 8;
+    if (xPos + 8 <= 0 || xPos >= 160)
+      continue;  // off-screen horizontally
+    int ySize = use8x16 ? 16 : 8;
+    // the scanline is the draw range
+    if (scanline >= yPos && scanline < yPos + ySize) {
+      selected[numSelected++] = index;
     }
-    if ((scanline >= yPos) &&
-        (scanline < yPos + ySize)) {  // within the y draw range
-      byte line = scanline - yPos;
-      if (flipY) {
-        // covert the 0 to last if the line is 0
-        // so fliping is just reading from last rather than from start
-        line -= ySize;
-        line *= -1;
-      }
-      line *= 2;  // same as tiles
-      // each row in tile takes exacly two bytes
-      // that's why we multiply tileLocation with  16
-      // line is for jumping each row
-      // Row0: 0x8000+(tileLocation*16)+0;
-      // Row1: 0x8000+(tileLocation*16)+2;
-      // ....
-      // Row7: 0x8000+(tileLocation*16)+14;
-      // So the reason i didn't write for 8x16 specific is that this match
-      // automatically handle that too Row0: .......
-      //.....
-      // Row15:0x8000+(tileLocation*16)+30;
-      word tileAddress = 0x8000 + (tileLocation * 16) + line;
-      byte data1, data2;
-      if (m_isGBC && spritevramBank) {
-        data1 = m_vram[1][tileAddress - 0x8000];
-        data2 = m_vram[1][tileAddress + 1 - 0x8000];
-      } else {
-        data1 = ReadMemory(tileAddress);
-        data2 = ReadMemory(tileAddress + 1);
-      }
+  }
+  // split into "behind BG" (bit 7 set) and "front" (bit 7 clear) groups
+  int behind[10], front[10];
+  int nBehind = 0, nFront = 0;
+  for (int i = 0; i < numSelected; i++) {
+    byte attrs = ReadMemory(0xFE00 + selected[i] + 3);
+    if (attrs & 0x80) {
+      behind[nBehind++] = selected[i];
+    } else {
+      front[nFront++] = selected[i];
+    }
+  }
 
-      // now start the horizontal pixel
-      //  the reason backward is because of how the colorbit map to pixel bit
-      //  same as tile colour bit
-      for (int pixelbit = 7; pixelbit >= 0; pixelbit--) {
-        int colorBit = pixelbit;
-        if (flipX) {  // flip it my boysss!!!!
-          colorBit -= 7;
-          colorBit *= -1;
-        }
-        // same as tile pixel
-        int colorNum = ((data2 >> colorBit) & 1) << 1;
-        colorNum |= (data1 >> colorBit) & 1;
-
-        int red = 0;
-        int green = 0;
-        int blue = 0;
-        if (m_isGBC) {
-          if (colorNum == 0) {
-            continue;
-          }
-          GBCcolor color = ReadColorGBC(colorNum, m_OBJPalette, spritePalette);
-          red = color.r;
-          green = color.g;
-          blue = color.b;
-        } else {
-          word colorAddress = ((attributes & 16) != 0)
-                                  ? 0xFF49
-                                  : 0xFF48;  // check the bit 4 of attributes
-          COLOUR color = ReadColor(colorNum, colorAddress);
-          if (color == 0) {
-            // skip this current loop
-            // why skip: the white is used for transparency
-            continue;
-          }
-
-          // only handle the two Enum
-          // Cuz other two are already handled by default duhhhhhhhhhh
-          switch (color) {
-            case WHITE:
-              red = 255;
-              green = 255;
-              blue = 255;
-              break;
-            case LIGHT_GRAY:
-              red = 0xCC;
-              green = 0xCC;
-              blue = 0xCC;
-              break;
-            case DARK_GRAY:
-              red = 0x77;
-              green = 0x77;
-              blue = 0x77;
-              break;
+  // DMG: sort each group by X ascending (stable -> lower OAM wins ties)
+  if (!m_isGBC) {
+    int* groups[2] = {behind, front};
+    int counts[2] = {nBehind, nFront};
+    for (int g = 0; g < 2; g++) {
+      for (int a = 0; a < counts[g]; a++) {
+        for (int b = a + 1; b < counts[g]; b++) {
+          int xa = (int)ReadMemory(0xFE00 + groups[g][a] + 1);
+          int xb = (int)ReadMemory(0xFE00 + groups[g][b] + 1);
+          if (xa > xb) {
+            int tmp = groups[g][a];
+            groups[g][a] = groups[g][b];
+            groups[g][b] = tmp;
           }
         }
-        // I wrote the pixle to be in reverse but when drawing has to be from 0
-        // to 7 so for example ; if pixelbit is 7 that means the xPix= 0;
-        int xPix = 7 - pixelbit;
-        // current pixel
-        int pixel = xPix + xPos;
-
-        // boundry check
-        if ((scanline < 0 || scanline > 143) || (pixel < 0 || pixel > 159)) {
-          continue;
-        }
-
-        // hidden check
-        if (((attributes >> 7) & 1) != 0) {
-          if ((m_screenData[scanline][pixel][0] != 255) ||
-              (m_screenData[scanline][pixel][1] != 255) ||
-              (m_screenData[scanline][pixel][2] != 255)) {
-            continue;
-          }
-        }
-        m_screenData[scanline][pixel][0] = red;
-        m_screenData[scanline][pixel][1] = green;
-        m_screenData[scanline][pixel][2] = blue;
-        m_screenData[scanline][pixel][3] = 0xFF;
       }
     }
   }
+
+  // draw behind group first, then front group
+  for (int s = nBehind - 1; s >= 0; s--)
+    DrawSpritePixels(behind[s], use8x16);
+  for (int s = nFront - 1; s >= 0; s--)
+    DrawSpritePixels(front[s], use8x16);
 }
 
+void GameBoy::DrawSpritePixels(int index, bool use8x16) {
+  int yPos = (int)(ReadMemory(0xFE00 + index) - 16);
+  int xPos = (int)(ReadMemory(0xFE00 + index + 1) - 8);
+  byte tileLocation = ReadMemory(0xFE00 + index + 2);
+  byte attributes = ReadMemory(0xFE00 + index + 3);
+  bool flipY = (attributes & 64) != 0;
+  bool flipX = (attributes & 32) != 0;
+  byte spritePalette = attributes & 0x7;
+  bool spritevramBank = (attributes >> 3) & 0x01;
+  byte scanline = ReadMemory(0xFF44);
+  byte line = scanline - yPos;
+  if (flipY) {
+    line = (byte)((use8x16 ? 16 : 8) - 1 - line);
+  }
+  line *= 2;
+  if (use8x16) {
+    tileLocation &= 0xFE;
+  }
+  word tileAddress = 0x8000 + (tileLocation * 16) + line;
+  byte data1, data2;
+  if (m_isGBC) {
+    // PPU always fetches from the bank selected by the OAM attribute bit 3,
+    // regardless of the CPU VBK register (0xFF4F).
+    data1 = m_vram[spritevramBank][tileAddress - 0x8000];
+    data2 = m_vram[spritevramBank][tileAddress + 1 - 0x8000];
+  } else {
+    data1 = ReadMemory(tileAddress);
+    data2 = ReadMemory(tileAddress + 1);
+  }
+  for (int pixelBit = 7; pixelBit >= 0; pixelBit--) {
+    int colorBit = pixelBit;
+    if (flipX) {
+      colorBit -= 7;
+      colorBit *= -1;
+    }
+    int colorNum = ((data2 >> colorBit) & 1) << 1;
+    colorNum |= (data1 >> colorBit) & 1;
+    int red = 0, green = 0, blue = 0;
+    if (m_isGBC) {
+      if (colorNum == 0)
+        continue;
+      GBCcolor color = ReadColorGBC(colorNum, m_OBJPalette, spritePalette);
+      red = color.r;
+      green = color.g;
+      blue = color.b;
+    } else {
+      word colorAddress = (attributes & 16) != 0 ? 0xFF49 : 0xFF48;
+      COLOUR color = ReadColor(colorNum, colorAddress);
+      if (colorNum == 0) {
+        continue;
+      }
+      switch (color) {
+        case WHITE:
+          red = 255;
+          green = 255;
+          blue = 255;
+          break;
+        case LIGHT_GRAY:
+          red = 0xCC;
+          green = 0xCC;
+          blue = 0xCC;
+          break;
+        case DARK_GRAY:
+          red = 0x77;
+          green = 0x77;
+          blue = 0x77;
+          break;
+      }
+    }
+    int xPix = 7 - pixelBit;
+    int pixel = xPix + xPos;
+    if (scanline > 143 || pixel < 0 || pixel > 159)
+      continue;
+    if (m_bgIndex[pixel] != 0 && (m_bgPrio[pixel] || ((attributes >> 7) & 1)))
+      continue;
+    m_screenData[scanline][pixel][0] = red;
+    m_screenData[scanline][pixel][1] = green;
+    m_screenData[scanline][pixel][2] = blue;
+    m_screenData[scanline][pixel][3] = 0xFF;
+  }
+}
 void GameBoy::ScreenReset() {
   for (int x = 0; x < 144; x++) {
     for (int y = 0; y < 160; y++) {

@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <stdexcept>
@@ -72,23 +73,27 @@ int main(int argc, char* argv[]) {
               frame, white, gameboy.m_programCounter,
               gameboy.ReadMemory(0xFF44), gameboy.ReadMemory(0xFF40));
     }
-    fprintf(stderr, "\nBG_Paletter Value:\n");
-    const word* palette_data = gameboy.getBG_Palette();
-    for (int i = 0; i < 32; i++) {
-      fprintf(stderr, "%04x", palette_data[i]);
-    }
-    fprintf(stderr, "\nWY=%02x,WX=%02x,VBK=%02x,pc=%04x,ly=%02x,lcdc=%02x\n",
-            gameboy.ReadMemory(0xFF4A), gameboy.ReadMemory(0xFF4B),
+    // Per-frame debug dump is very slow (unbuffered stderr). Gate it behind an
+    // environment variable so it is off by default.
+    if (getenv("GB_DEBUG")) {
+      fprintf(stderr, "\nBG_Paletter Value:\n");
+      const word* palette_data = gameboy.getBG_Palette();
+      for (int i = 0; i < 32; i++) {
+        fprintf(stderr, "%04x", palette_data[i]);
+      }
+      fprintf(stderr, "\nWY=%02x,WX=%02x,VBK=%02x,pc=%04x,ly=%02x,lcdc=%02x\n",
+              gameboy.ReadMemory(0xFF4A), gameboy.ReadMemory(0xFF4B),
 
-            gameboy.ReadMemory(0xFF4F), gameboy.m_programCounter,
-            gameboy.ReadMemory(0xFF44), gameboy.ReadMemory(0xFF40));
-    delete palette_data;
-    const byte* vramData = gameboy.GetVram(0);
-    fprintf(stderr, "\nWinMap:\n");
-    for (int i = 0; i < 16; i++) {
-      fprintf(stderr, "%02x", vramData[0x1C00 + i]);
+              gameboy.ReadMemory(0xFF4F), gameboy.m_programCounter,
+              gameboy.ReadMemory(0xFF44), gameboy.ReadMemory(0xFF40));
+      delete palette_data;
+      const byte* vramData = gameboy.GetVram(0);
+      fprintf(stderr, "\nWinMap:\n");
+      for (int i = 0; i < 16; i++) {
+        fprintf(stderr, "%02x", vramData[0x1C00 + i]);
+      }
+      fprintf(stderr, "\n");
     }
-    fprintf(stderr, "\n");
   }
 
   try {

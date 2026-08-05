@@ -106,17 +106,6 @@ void GameBoy::WriteMemory(word address, byte data) {
   } else if (address == 0xFF70) {
     WriteSVBK(data);
     m_rom[0xFF70] = data;
-  }
-  // in CGB mode FF47-FF4A alias the BCPS/BCPD/OCPS/OCPD palette registers;
-  // on DMG they remain the BGP/OBP0/OBP1 gray-palette registers (m_rom[])
-  else if (address == 0xFF47 && m_isGBC) {
-    WriteBCPS(data);
-  } else if (address == 0xFF48 && m_isGBC) {
-    WriteBCPD(data);
-  } else if (address == 0xFF49 && m_isGBC) {
-    WriteOCPS(data);
-  } else if (address == 0xFF4A && m_isGBC) {
-    WriteOCPD(data);
   } else if (address == 0xFF68) {
     WriteBCPS(data);
   } else if (address == 0xFF69) {
@@ -229,16 +218,6 @@ byte GameBoy::ReadMemory(word address) const {
     return m_wram[current_wramBank][address - 0xD000];
   } else if (address == 0xFF4D) {
     return m_rom[0xFF4D];
-  }
-  // in CGB mode FF47-FF4A alias the BCPS/BCPD/OCPS/OCPD palette registers
-  else if (address == 0xFF47 && m_isGBC) {
-    return m_BGPaletteIndex;
-  } else if (address == 0xFF48 && m_isGBC) {
-    return m_BGPalette[m_BGPaletteIndex];
-  } else if (address == 0xFF49 && m_isGBC) {
-    return m_OBJPaletteIndex;
-  } else if (address == 0xFF4A && m_isGBC) {
-    return m_OBJPalette[m_OBJPaletteIndex];
   }
   // others region? return
   else {

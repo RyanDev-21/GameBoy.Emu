@@ -58,9 +58,10 @@ GameBoy::GameBoy()
   memset(&m_SerialOutput, 0, sizeof(m_SerialOutput));
   memset(&m_vram, 0, sizeof(m_vram));
   memset(&m_wram, 0, sizeof(m_wram));
-  // CGB boot ROM initializes all background colors to white (RGB555 0x7FFF).
-  // Without this, the title screen of games that rely on the default palette
-  // (e.g. Pokemon Crystal) renders all-black.
+  memset(&m_bgIndex, 0, sizeof(m_bgIndex));
+  // CGB boot ROM initializes all background colors to white (RGB555
+  // 0x7FFF). Without this, the title screen of games that rely on the
+  // default palette (e.g. Pokemon Crystal) renders all-black.
   for (size_t i = 0; i < sizeof(m_BGPalette); i += 2) {
     m_BGPalette[i] = 0xFF;
     m_BGPalette[i + 1] = 0x7F;

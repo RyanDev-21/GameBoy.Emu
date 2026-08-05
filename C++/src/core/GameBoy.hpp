@@ -12,6 +12,8 @@ class GameBoy {
   byte m_rom[0x10000];
   byte m_vram[2][0x2000];
   byte m_wram[8][0x1000];
+  byte m_bgIndex[160];  // bg/window color index per x
+  bool m_bgPrio[160];   // by tile had priority attr and pixel !=0
   TimePoint m_RTCtimeStamp;
   int m_TimerCounter;
   int m_scalineCounter;
@@ -150,6 +152,7 @@ class GameBoy {
   void WriteOCPD(byte data);  // data
   void DoHDMAChunk();
   void ToggleDoubleSpeed();
+  void DrawSpritePixels(int index, bool use8x16);
 
  public:
   word m_programCounter;
