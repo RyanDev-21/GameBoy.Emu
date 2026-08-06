@@ -133,6 +133,11 @@ void GameBoy::WriteMemory(word address, byte data) {
   }
   // transfer length/mode/start reg
   else if (address == 0xFF55) {
+    if (!(data & 0x80) && m_hdmaActive && m_hdmaHBlankMode) {
+      m_hdmaActive = false;
+      m_rom[0xFF55] = 0x80 | ((byte)(m_hdmaRemaining - 1) & 0x7F);
+      return;
+    }
     m_rom[0xFF55] = data;
     if (data & 0x80) {
       // HBlank DMA: one 16-byte chunk is copied during each HBlank

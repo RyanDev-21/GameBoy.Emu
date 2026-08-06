@@ -199,12 +199,12 @@ void GameBoy::LoadRam(const char* loadPath) {
   }
   auto data_ptr = std::make_unique<saveData>();
   fread(data_ptr.get(), 1, sizeof(saveData), file);
-  fclose(file);
   memcpy(m_ramBanks, data_ptr->ramBanks, sizeof(data_ptr->ramBanks));
   memcpy(m_RTCregs, data_ptr->RTCregs, sizeof(data_ptr->RTCregs));
   m_RTCtimeStamp = data_ptr->RTCTimeStamp;
   std::chrono::duration<float> elasped_time = (Clock::now() - m_RTCtimeStamp);
   fastForwardRTC(elasped_time.count());
+  fclose(file);
 }
 
 word* GameBoy::getBG_Palette() const {

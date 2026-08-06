@@ -142,7 +142,7 @@ void GameBoy::DoDMATransfer(byte address) {
 // bit 0 - BG Display  (0=Off, 1=On)
 void GameBoy::DrawScanLine() {
   byte status = ReadMemory(0xFF40);
-  if ((status & 1) != 0) {  // check bit 0
+  if (m_isGBC || (status & 1) != 0) {  // check bit 0
     RenderTiles();
   }
 
@@ -195,7 +195,12 @@ void GameBoy::RenderTiles() {
     word tileRow = ((localY / 8) % 32) * 32;  // vertical tiles index
     // plus all three index and get the actual tileAddress
     word tileAddress = backgroundMem + tileRow + (tileCol % 32);
-    int8_t rawTile = (int8_t)ReadMemory(tileAddress);
+    int8_t rawTile{};
+    if (m_isGBC) {
+      rawTile = (int8_t)(m_vram[0][tileAddress - 0x8000]);
+    } else {
+      rawTile = (int8_t)ReadMemory(tileAddress);
+    }
 
     // for GBC
     byte tileAttr = 0;
@@ -343,14 +348,18 @@ void GameBoy::RenderSprites() {
                        // whether the sprite is 8x8 or 8x16
   byte scanline = ReadMemory(0xFF44);
   // collect up to 10 sprites on this scanline, in OAM order.
+  // scanline can only update 10 objects per scanline
   int selected[10];
   int numSelected = 0;
   for (int i = 0; i < 40 && numSelected < 10; i++) {
+    // Each Obj have 4 bytes so we jump by i*4
     int index = i * 4;
+    // 0-byte = YPos(offset=16)
+    // 1-byte =Xpos(offset=8)
+    // 2-byte = Tile index
+    // 3-byte  = Attribute
     int yPos = (int)ReadMemory(0xFE00 + index) - 16;
     int xPos = (int)ReadMemory(0xFE00 + index + 1) - 8;
-    if (xPos + 8 <= 0 || xPos >= 160)
-      continue;  // off-screen horizontally
     int ySize = use8x16 ? 16 : 8;
     // the scanline is the draw range
     if (scanline >= yPos && scanline < yPos + ySize) {
@@ -362,7 +371,7 @@ void GameBoy::RenderSprites() {
   int nBehind = 0, nFront = 0;
   for (int i = 0; i < numSelected; i++) {
     byte attrs = ReadMemory(0xFE00 + selected[i] + 3);
-    if (attrs & 0x80) {
+    if (attrs & 0x80) {  // bit 7 priority
       behind[nBehind++] = selected[i];
     } else {
       front[nFront++] = selected[i];
@@ -462,13 +471,20 @@ void GameBoy::DrawSpritePixels(int index, bool use8x16) {
           green = 0x77;
           blue = 0x77;
           break;
+        case BLACK:
+          red = 0x00;
+          green = 0x00;
+          blue = 0x00;
+          break;
       }
     }
     int xPix = 7 - pixelBit;
     int pixel = xPix + xPos;
     if (scanline > 143 || pixel < 0 || pixel > 159)
       continue;
-    if (m_bgIndex[pixel] != 0 && (m_bgPrio[pixel] || ((attributes >> 7) & 1)))
+    bool masterPriority = m_isGBC ? ((ReadMemory(0xFF40) & 0x01) != 0) : true;
+    if ((masterPriority && m_bgIndex[pixel] != 0) &&
+        (m_bgPrio[pixel] || ((attributes >> 7) & 1)))
       continue;
     m_screenData[scanline][pixel][0] = red;
     m_screenData[scanline][pixel][1] = green;
