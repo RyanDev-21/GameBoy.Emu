@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -5,17 +6,23 @@
 #include "GameBoy.hpp"
 
 void GameBoy::ReadRom(char const* filePath) {
-  memset(&m_CartridgeMemory, 0, sizeof(m_CartridgeMemory));
+  m_CartridgeMemory.clear();
   FILE* in;
-
   in = fopen(filePath, "rb");
   if (!in) {
     Debug::Error("Could not open ROM file: %s\n", filePath);
     return;
   }
-  fread(m_CartridgeMemory, 1, 0x200000, in);
-  fclose(in);
+  fseek(in, 0, SEEK_END);
 
+  long size = ftell(in) > 0x800000 ? 0x800000 : ftell(in);
+  fseek(in, 0, SEEK_SET);
+
+  m_CartridgeMemory.resize(size);
+  fread(m_CartridgeMemory.data(), 1, size, in);
+  fclose(in);
+  ramSize = GetRamSize(m_CartridgeMemory[0x149]);
+  m_ramBanks.assign(ramSize, 0);
   byte mbcType = m_CartridgeMemory[0x147];
   if (mbcType >= 1 && mbcType <= 3) {
     m_MBC1 = true;
@@ -23,6 +30,8 @@ void GameBoy::ReadRom(char const* filePath) {
     m_MBC2 = true;
   } else if (mbcType >= 0x0F && mbcType <= 0x13) {
     m_MBC3 = true;
+  } else if (mbcType >= 0x19 && mbcType <= 0x1E) {
+    m_MBC5 = true;
   }
   // bit 7 set for GCB compatible and DMG also
   // bit 7 and 6 set for only CGB
@@ -33,7 +42,23 @@ void GameBoy::ReadRom(char const* filePath) {
   // DMG).
   m_RegisterAF.reg = m_isGBC ? 0x11B0 : 0x01B0;
 }
-
+size_t GameBoy::GetRomSize(byte code) {
+  if (code <= 0x08) {
+    return size_t(32 * (1 << (code & 0x01)));
+  }
+  return 32 * 1024;
+}
+size_t GameBoy::GetRamSize(byte code) {
+  switch (code) {
+    case 0x00: return 0; break;
+    case 0x01: return 0; break;
+    case 0x02: return 8 * 1024; break;
+    case 0x03: return 32 * 1024; break;
+    case 0x04: return 128 * 1024; break;
+    case 0x05: return 54 * 1024; break;
+    default: return 0;
+  }
+}
 void GameBoy::WriteMemory(word address, byte data) {
   // if within the switching range then handle the switching
   if (address < 0x8000) {
@@ -132,7 +157,13 @@ void GameBoy::WriteMemory(word address, byte data) {
     m_rom[0xFF54] = data;
   }
   // transfer length/mode/start reg
+  // the reason we need to dec the data&0x7F is because
+  // when the gameboy write the lenght of that data they want to copy
+  // they alwasy write as length-1 so in order to get the actual length
+  // we need to inc that back again
   else if (address == 0xFF55) {
+    // checking that if we have currentlly running hdmaTransfer
+    // while the gdma bit 7 is turned on?
     if (!(data & 0x80) && m_hdmaActive && m_hdmaHBlankMode) {
       m_hdmaActive = false;
       m_rom[0xFF55] = 0x80 | ((byte)(m_hdmaRemaining - 1) & 0x7F);
@@ -241,12 +272,19 @@ void GameBoy::WriteRTCReg(byte data) {
 void GameBoy::HandleBanking(word address, byte data) {
   // do RAM enabling
   if (address < 0x2000) {
-    if (m_MBC1 || m_MBC2 || m_MBC3) {
+    if (m_MBC1 || m_MBC2 || m_MBC3 || m_MBC5) {
       DoRAMBanking(address, data);
     }
   }
   // do RAM switching
   else if (address >= 0x2000 && address <= 0x3FFF) {
+    if (m_MBC5) {
+      if (address <= 0x2FFF) {
+        current_romBank = data & 0xFF;
+      } else if (address >= 0x3000 && address <= 0x3FFF) {
+        current_romBank = ((data & 0x01) << 8) | current_romBank;
+      }
+    }
     if (m_MBC1 || m_MBC2 || m_MBC3) {
       DoChangeLoROMBank(data);
     }
@@ -263,13 +301,16 @@ void GameBoy::HandleBanking(word address, byte data) {
     } else if (m_MBC3) {
       doChangeRamOrRTC(data);
     }
-  }
-  // do ROM enable
-  else if (address >= 0x6000 && address < 0x8000) {
-    if (m_MBC1) {
-      DoChangeROMRAMBank(data);
-    } else if (m_MBC3) {
-      handleRTCLatch(data);
+    if (m_MBC5) {
+      current_ramBank = data & 0xFF;
+    }
+    // do ROM enable
+    else if (address >= 0x6000 && address < 0x8000) {
+      if (m_MBC1) {
+        DoChangeROMRAMBank(data);
+      } else if (m_MBC3) {
+        handleRTCLatch(data);
+      }
     }
   }
 }
@@ -316,6 +357,7 @@ void GameBoy::DoChangeLoROMBank(byte data) {
     }
     return;
   }
+
   // 31 in binary =0001 1111
   byte low5 = data & 31;  // lower 5 bits
   // 224 in binary = 1110 0000
@@ -413,13 +455,15 @@ void GameBoy::DoHDMAChunk() {
   src += 16;
   dst += 16;
   m_rom[0xFF51] = (byte)(src >> 8);
-  m_rom[0xFF52] = (byte)(src & 0xFF);
+  m_rom[0xFF52] = (byte)(src & 0xFF);  // this is okay to just use the lower
+                                       // 4-bit turned off value as
+  // it is going to be turned of anyway
   word dstOffset = dst - 0x8000;
   m_rom[0xFF53] = (byte)(dstOffset >> 8);
   m_rom[0xFF54] = (byte)(dstOffset & 0xFF);
   m_hdmaRemaining--;
   if (m_hdmaRemaining == 0) {
     m_hdmaActive = false;
-    m_rom[0xFF55] = 0xFF;  // 0xFF = transfer finished
+    m_rom[0xFF55] = 0xFF;  // 0xFF = transer finished
   }
 }

@@ -33,6 +33,8 @@ void GameBoy::UpdateGraphics(int cycles) {
   SetLCD_status();
   // HBlank DMA: one 16-byte chunk per HBlank while mode 0 is active
   if (m_hdmaActive && m_hdmaHBlankMode) {
+    // only during the mode-0 and mode-2
+    // not mode-1(V-blank)
     if ((ReadMemory(0xFF41) & 0x3) == 0 && ReadMemory(0xFF44) < 144 &&
         !m_hdmaLineDone) {
       DoHDMAChunk();
@@ -126,8 +128,8 @@ void GameBoy::SetLCD_status() {
 // destination address(0xFE00-0xFE9F) which is exacly 0xA0 byte
 void GameBoy::DoDMATransfer(byte address) {
   // 0xFF46 has the source address and only store 8 bit
-  word targetAddr = address << 8;  // shift by right 8 to form 16bit
-  for (int i = 0; i < 0xA0; i++) {
+  word targetAddr = address << 8;   // shift by right 8 to form 16bit
+  for (int i = 0; i < 0xA0; i++) {  // 160
     WriteMemory(0xFE00 + i, ReadMemory(targetAddr + i));
   }
 }

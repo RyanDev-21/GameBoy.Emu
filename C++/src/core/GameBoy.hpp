@@ -2,14 +2,16 @@
 #define GAMEBOY_H
 
 #include <memory>
+#include <vector>
 
 #include "../utils/types.hpp"
 class GameBoy {
  private:
-  byte m_CartridgeMemory[0x200000];
+  std::vector<byte> m_CartridgeMemory;
   byte m_screenData[144][160][4];
-  byte m_ramBanks[0x8000];
-  byte m_rom[0x10000];
+  std::vector<byte> m_ramBanks;
+  size_t ramSize;
+  std::vector<byte> m_rom;
   byte m_vram[2][0x2000];
   byte m_wram[8][0x1000];
   byte m_bgIndex[160];  // bg/window color index per x
@@ -28,12 +30,13 @@ class GameBoy {
   byte current_ramBank;
   byte m_enableRAM;
   byte m_enableROM;
-  byte current_romBank;
+  word current_romBank;
   byte current_vramBank;
   byte current_wramBank;
-  byte m_MBC1;
-  byte m_MBC2;
-  byte m_MBC3;
+  bool m_MBC1;
+  bool m_MBC2;
+  bool m_MBC3;
+  bool m_MBC5;
   byte m_mbc3RamBankOrRtc;
   byte m_mbc3RtcIdx;
   byte m_RTCWriteState;
@@ -153,6 +156,8 @@ class GameBoy {
   void DoHDMAChunk();
   void ToggleDoubleSpeed();
   void DrawSpritePixels(int index, bool use8x16);
+  size_t GetRomSize(byte romByte);
+  size_t GetRamSize(byte code);
 
  public:
   word m_programCounter;

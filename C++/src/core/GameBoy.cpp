@@ -1,10 +1,12 @@
 #include "GameBoy.hpp"
 
+#include <algorithm>
+#include <cassert>
 #include <cstdio>
 #include <cstring>
-#include <fstream>
 #include <memory>
 #include <stdexcept>
+#include <system_error>
 
 #include "../utils/Debug.hpp"
 // The consturctor will initialize and then set the required state of the
@@ -25,6 +27,7 @@ GameBoy::GameBoy()
       m_MBC1(false),
       m_MBC2(false),
       m_MBC3(false),
+      m_MBC5(false),
       m_mbc3RamBankOrRtc(0),
       m_mbc3RtcRegister(false),
       m_mbc3RtcIdx(0),
@@ -50,10 +53,12 @@ GameBoy::GameBoy()
       m_hdmaHBlankMode(false),
       m_hdmaLineDone(false) {
   m_stackPointer.reg = 0xFFFE;
+  m_CartridgeMemory.assign(0x200000, 0);
   memset(&m_RTCLatch, 0, sizeof(m_RTCLatch));
   memset(&m_RTCregs, 0, sizeof(m_RTCregs));
-  memset(&m_ramBanks, 0, sizeof(m_ramBanks));
-  memset(&m_rom, 0, sizeof(m_rom));
+  m_rom.assign(0x10000, 0);
+  // memset(&m_ramBanks, 0, m_amBanks.size());
+  // memset(&m_rom, 0, sizeof(m_rom));
   memset(&m_screenData, 0, sizeof(m_screenData));
   memset(&m_SerialOutput, 0, sizeof(m_SerialOutput));
   memset(&m_vram, 0, sizeof(m_vram));
@@ -179,7 +184,11 @@ bool GameBoy::SaveRam(const char* savPath) {
         " (Code: " + std::to_string(errorCode) + ")");
   }
   std::unique_ptr<saveData> data = convertFormat();
-  fwrite(data.get(), 1, sizeof(data), file);
+  size_t ramBanksSize = data->ramBanks.size();
+  fwrite(&ramBanksSize, 1, sizeof(size_t), file);
+  fwrite(data->ramBanks.data(), 1, ramBanksSize, file);
+  fwrite(data->RTCregs, sizeof(data->RTCregs), 1, file);
+  fwrite(&data->RTCTimeStamp, sizeof(TimePoint), 1, file);
   fclose(file);
   return true;
 }
@@ -187,7 +196,8 @@ bool GameBoy::SaveRam(const char* savPath) {
 std::unique_ptr<saveData> GameBoy::convertFormat() const {
   auto data = std::make_unique<saveData>();
   memcpy(data->RTCregs, m_RTCregs, sizeof(m_RTCregs));
-  memcpy(data->ramBanks, m_ramBanks, sizeof(m_ramBanks));
+  data->ramBanks.resize(m_ramBanks.size());
+  data->ramBanks = m_ramBanks;
   data->RTCTimeStamp = Clock::now();
   return data;
 };
@@ -197,13 +207,21 @@ void GameBoy::LoadRam(const char* loadPath) {
   if (!file) {
     return;
   }
-  auto data_ptr = std::make_unique<saveData>();
-  fread(data_ptr.get(), 1, sizeof(saveData), file);
-  memcpy(m_ramBanks, data_ptr->ramBanks, sizeof(data_ptr->ramBanks));
-  memcpy(m_RTCregs, data_ptr->RTCregs, sizeof(data_ptr->RTCregs));
-  m_RTCtimeStamp = data_ptr->RTCTimeStamp;
-  std::chrono::duration<float> elasped_time = (Clock::now() - m_RTCtimeStamp);
-  fastForwardRTC(elasped_time.count());
+  size_t ramBanksSize = 0;
+  fread(&ramBanksSize, sizeof(size_t), 1, file);
+  if (ramBanksSize != m_ramBanks.size()) {
+    fprintf(stderr, "The ram size doens't match resize back to default");
+    fread(m_RTCregs, sizeof(m_RTCregs), 1, file);
+    TimePoint timestamp;
+    fread(&timestamp, sizeof(TimePoint), 1, file);
+    m_RTCtimeStamp = timestamp;
+    std::chrono::duration<float> elasped_time = (Clock::now() - m_RTCtimeStamp);
+    fastForwardRTC(elasped_time.count());
+  } else {
+    std::vector<byte> loadedRam(ramBanksSize);
+    fread(loadedRam.data(), 1, ramBanksSize, file);
+    m_ramBanks = std::move(loadedRam);
+  }
   fclose(file);
 }
 

@@ -1,6 +1,7 @@
 #ifndef TYPES_HPP
 #define TYPES_HPP
 
+#include <vector>
 #define FLAG_Z 7
 #define FLAG_N 6
 #define FLAG_H 5
@@ -47,7 +48,7 @@ union Register {
 
 #pragma pack(push, 1)
 struct saveData {
-  byte ramBanks[0x8000];
+  std::vector<byte> ramBanks;
   byte RTCregs[5];
   TimePoint RTCTimeStamp;
 };
