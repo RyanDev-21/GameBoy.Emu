@@ -38,6 +38,13 @@ enum OP {
   DEC = 3,
 };
 
+enum DutyCycle {
+  ZERO = 0,
+  ONE = 1,
+  TWO = 2,
+  THREE = 3,
+};
+
 union Register {
   word reg;
   struct {
