@@ -73,8 +73,7 @@ int main(int argc, char* argv[]) {
               frame, white, gameboy.m_programCounter,
               gameboy.ReadMemory(0xFF44), gameboy.ReadMemory(0xFF40));
     }
-    // Per-frame debug dump is very slow (unbuffered stderr). Gate it behind an
-    // environment variable so it is off by default.
+
     if (getenv("GB_DEBUG")) {
       fprintf(stderr, "\nBG_Paletter Value:\n");
       const word* palette_data = gameboy.getBG_Palette();
