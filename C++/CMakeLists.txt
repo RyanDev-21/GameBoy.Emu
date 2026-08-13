@@ -15,6 +15,10 @@ add_executable(${PROJECT_NAME}
     src/core/timer.cpp
     src/core/interrupt.cpp
     src/core/joypad.cpp
+    src/core/apu/apu.cpp
+    src/core/apu/channels/noiseChannel.cpp
+    src/core/apu/channels/squareChannel.cpp
+    src/core/apu/channels/waveChannel.cpp
     src/utils/Debug.cpp
     src/utils/StringUtils.cpp
     src/Platform/Platform.cpp

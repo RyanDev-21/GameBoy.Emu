@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "../utils/types.hpp"
-#include "apu/squareChannel.hpp"
+#include "apu/apu.hpp"
 class GameBoy {
  private:
   std::vector<byte> m_CartridgeMemory;
@@ -71,10 +71,8 @@ class GameBoy {
   bool m_hdmaHBlankMode;  // true = HBlank DMA, false = general purpose DMA
   bool m_hdmaLineDone;    // chunk already transferred on this scanline
 
-  // Sound Master controller
-  bool audio_control;
-  SquareChannel channel1{};
-  SquareChannel channel2{};
+  // Sound
+  APU apu;
 
   void PushWordToStack(word data);
   word PopWordFromStack();

@@ -25,11 +25,12 @@ class NoiseChannel {
   NoiseChannel();
   ~NoiseChannel();
   void writeRegs(word address, byte data);
-  byte readRegs(word address);
+  byte readRegs(word address) const;
   void trigger();
   void step();
   void envClock();
   void lengthClock();
   bool getEnvRunning() const;
+  bool getRunning() const;
   byte getOutputVol() const;
 };

@@ -42,4 +42,5 @@ class SquareChannel {
   word sweepCalc();
   byte readReg(word address) const;
   bool getEnvRunning() const;
+  bool getRunning() const;
 };

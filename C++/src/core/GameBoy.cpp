@@ -112,13 +112,17 @@ GameBoy::GameBoy()
   m_rom[0xFFFF] = 0x00;  // IE
 }
 
+GameBoy::~GameBoy() {
+}
+
 int GameBoy::Update() {
   int cycles = NextOpCodeExcute();
   cycles += DoInterrupts();
   UpdateTimers(cycles);
-  int ppuCycles = m_doubleSpeed ? cycles / 2 : cycles;
-  UpdateGraphics(ppuCycles);
-  return ppuCycles;
+  int newCycles = m_doubleSpeed ? cycles / 2 : cycles;
+  UpdateGraphics(newCycles);
+  apu.step(newCycles);
+  return newCycles;
 }
 
 const byte* GameBoy::GetScreenData() const {

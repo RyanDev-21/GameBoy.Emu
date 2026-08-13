@@ -1,5 +1,7 @@
 #include "waveChannel.hpp"
 
+#include <cstdio>
+
 WaveChannel::WaveChannel() {
 }
 WaveChannel::~WaveChannel() {
@@ -47,8 +49,8 @@ void WaveChannel::writeRegs(word address, byte data) {
         // MSB
         // same as squareChannel
         lengthEnable = (data & 0x40) != 0;
-        timerLoad = (timerLoad & 0xFF) | (data & 0x7);
-        triggerBit = (data & 0x8) != 0;
+        timerLoad = (timerLoad & 0xFF) | ((data & 0x7) << 8);
+        triggerBit = (data & 0x80) != 0;
         if (triggerBit) {
           trigger();
         }
@@ -89,7 +91,7 @@ void WaveChannel::step() {
 void WaveChannel::lengthClock() {
   if (lengthCounter > 0 && lengthEnable) {
     lengthCounter--;
-  } else {
+  } else if (lengthCounter == 0) {
     enabled = 0;
   }
 };
@@ -109,4 +111,19 @@ byte WaveChannel::getOutPutVol() const {
 
 bool WaveChannel::getRunning() const {
   return lengthCounter > 0;
+}
+
+void WaveChannel::DebugPrint() const {
+  fprintf(stdout, "Wave Chanel\n");
+  fprintf(stdout, "timerLoad :%d\n", timerLoad);
+  fprintf(stdout, "timer:%d\n", timer);
+  fprintf(stdout, "dacEnabled:%d\n", dacEnabled);
+  fprintf(stdout, "volumeCode:%d\n", volumeCode);
+  fprintf(stdout, "outputVol:%d\n", outputVol);
+  fprintf(stdout, "lengthEnable:%d\n", lengthEnable);
+  fprintf(stdout, "enabled:%d\n", enabled);
+  fprintf(stdout, "positionCounter:%d\n", positionCounter);
+  for (int i = 0; i < 16; i++) {
+    fprintf(stdout, "waveTable value at index %d:%d\n", i, waveTable[i]);
+  }
 }

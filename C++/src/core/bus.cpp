@@ -102,9 +102,7 @@ void GameBoy::WriteMemory(word address, byte data) {
       SetClockFeq();             // set new one
     }
   }
-  // Sound Master channel
-  else if (address == 0xFF26) {
-  }
+
   // if within the switchable ram range
   else if (address >= 0xA000 && address < 0xC000) {
     if (m_enableRAM) {
@@ -124,8 +122,10 @@ void GameBoy::WriteMemory(word address, byte data) {
   }
   // no write allowed for these regions
   else if (address >= 0xFEA0 && address < 0xFEFF) {
+  } else if (address >= 0xFF10 && address <= 0xFF3F) {
+    fprintf(stderr, "APU write addr=%04X data=%02X\n", address, data);
+    apu.handleWriteRouting(address, data);
   }
-
   // for SGB
   else if (address == 0xFF4F) {
     WriteVBK(data);
@@ -199,10 +199,7 @@ void GameBoy::WriteMemory(word address, byte data) {
     m_wram[0][address - 0xC000] = data;
   } else if (address >= 0xD000 && address <= 0xDFFF) {
     m_wram[current_wramBank][address - 0xD000] = data;
-  } else if (address >= 0xFF10 && address <= 0xFF14) {
-    channel1.writeRegs(address, data);
-  } else if (address >= 0xFF21 && address <= 0xFF24) {
-    channel2.writeRegs(address, data);
+
   }
   // others
   else {
@@ -245,9 +242,6 @@ byte GameBoy::ReadMemory(word address) const {
   else if (address == 0xFF04) {
     return m_Div;
   }
-  // sound master Channel
-  else if (address == 0xFF26) {
-  }
   // for GBC
   else if (address >= 0x8000 && address <= 0x9FFF) {
     return m_vram[current_vramBank][address - 0x8000];
@@ -259,17 +253,14 @@ byte GameBoy::ReadMemory(word address) const {
 
   else if (address >= 0xD000 && address <= 0xDFFF) {
     return m_wram[current_wramBank][address - 0xD000];
+  } else if (address >= 0xFF10 && address <= 0xFF3F) {
+    fprintf(stderr, "APU read addr=%04X\n", address);
+    apu.handleReadRouting(address);
   } else if (address == 0xFF4D) {
     return m_rom[0xFF4D];
-  } else if (address >= 0xFF10 && address <= 0xFF14) {
-    channel1.readReg(address);
-  } else if (address >= 0xFF21 && address <= 0xFF24) {
-    channel2.readReg(address);
   }
   // others region? return
-  else {
-    return m_rom[address];
-  }
+  return m_rom[address];
 }
 void GameBoy::WriteRTCReg(byte data) {
   byte idx = m_mbc3RtcIdx - 0x08;

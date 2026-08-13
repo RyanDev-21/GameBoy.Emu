@@ -1,5 +1,7 @@
 #include "squareChannel.hpp"
 
+#include <cstdio>
+
 SquareChannel::SquareChannel() {
 }
 SquareChannel::~SquareChannel() {
@@ -76,7 +78,7 @@ void SquareChannel::writeRegs(word address, byte data) {
 void SquareChannel::lengthClock() {
   if (lengthCounter > 0 && lengthEnable) {
     lengthCounter--;
-  } else {
+  } else if (lengthCounter == 0) {
     enabled = false;
   }
 }
@@ -85,7 +87,7 @@ void SquareChannel::Step() {
   if (--timer <= 0) {
     // 4 dots per cycle
     timer = (2047 - timerLoad) * 4;
-    sequencePointer = (sequencePointer + 1) & 0x1F;
+    sequencePointer = (sequencePointer + 1) & 0x07;
   }
   if (enabled) {
     outputVol = volume;
@@ -137,9 +139,9 @@ void SquareChannel::EnvClock() {
       envPeriod = 8;
     }
     if (envRunning && envPeriod > 0) {
-      if (envAddMode) {
+      if (envAddMode && envPeriod < 15) {
         volume++;
-      } else {
+      } else if (!envAddMode && envPeriod > 0) {
         volume--;
       }
     }
@@ -171,4 +173,8 @@ void SquareChannel::Trigger() {
 
 bool SquareChannel::getEnvRunning() const {
   return envRunning;
+}
+
+bool SquareChannel::getRunning() const {
+  return lengthCounter > 0;
 }

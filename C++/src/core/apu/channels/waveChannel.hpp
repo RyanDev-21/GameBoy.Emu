@@ -24,4 +24,5 @@ class WaveChannel {
   byte readRegs(word address) const;
   void writeRegs(word address, byte data);
   bool getRunning() const;
+  void DebugPrint() const;
 };

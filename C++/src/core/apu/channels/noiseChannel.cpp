@@ -1,11 +1,13 @@
 #include "noiseChannel.hpp"
 
+#include <cstdio>
+
 NoiseChannel::NoiseChannel() {
 }
 NoiseChannel::~NoiseChannel() {
 }
 
-byte NoiseChannel::readRegs(word address) {
+byte NoiseChannel::readRegs(word address) const {
   byte currReg = (address & 0xF) % 0x05;
   byte result = 0;
   switch (currReg) {
@@ -18,7 +20,7 @@ byte NoiseChannel::readRegs(word address) {
       result |= (clockShift & 0xF) << 4 | (lsfrWidth & 0x01) << 3 |
                 (dividerCode & 0x07);
       break;
-    case 0x4: break; result |= (triggerBit & 0x01) << 7 | (lengthEnabled) << 6;
+    case 0x4: result |= (triggerBit & 0x01) << 7 | (lengthEnabled) << 6; break;
   }
 
   return result;
@@ -80,7 +82,7 @@ void NoiseChannel::envClock() {
       envelopPeriod = 8;
     }
     if (envelopRunning && envelopPeriod > 0) {
-      if (envelopAddmode && volume > 15) {
+      if (envelopAddmode && volume < 15) {
         volume++;
       } else if (!envelopAddmode && volume > 0) {
         volume--;
@@ -94,7 +96,7 @@ void NoiseChannel::envClock() {
 void NoiseChannel::lengthClock() {
   if (lengthEnabled && lengthCounter > 0) {
     lengthCounter--;
-  } else {
+  } else if (lengthCounter == 0) {
     enabled = false;
   }
 }
@@ -120,4 +122,8 @@ byte NoiseChannel::getOutputVol() const {
 
 bool NoiseChannel::getEnvRunning() const {
   return envelopRunning;
+}
+
+bool NoiseChannel::getRunning() const {
+  return lengthCounter > 0;
 }
