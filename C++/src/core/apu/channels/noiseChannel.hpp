@@ -5,7 +5,7 @@ class NoiseChannel {
   byte envelopPeriodLoad = 0;
   byte envelopPeriod = 0;
   bool envelopRunning = 0;
-  word timer = 0;
+  int timer = 0;  // 32-bit signed to avoid overflow when shifting divider
   byte lengthCounter = 0;
   byte volume = 0;
   byte outputVol = 0;
@@ -33,4 +33,5 @@ class NoiseChannel {
   bool getEnvRunning() const;
   bool getRunning() const;
   byte getOutputVol() const;
+  void DebugPrint() const;
 };

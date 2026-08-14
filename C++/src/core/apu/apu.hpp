@@ -6,6 +6,9 @@
 #include "channels/waveChannel.hpp"
 // as this is the standard size based on the sdl
 #define sample_size 4096
+// Charge factor: DMG ≈ 0.999958, CGB ≈ 0.998943 (per sample at 44100Hz-ish
+// rates) Higher value = gentler filter, lower = more aggressive DC removal
+static constexpr float kCharge = 0.999958f;
 
 #pragma once
 class APU {
@@ -24,12 +27,15 @@ class APU {
   byte downSampleCount = 95;
   int bufferFillAmount = 0;
   SDL_AudioDeviceID device_id;
-  float mainBuffer[sample_size] = {0};
+  // stereo interleaved buffer: `sample_size` frames × 2 channels
+  float mainBuffer[sample_size * 2] = {0};
   int frameSequencerCount = 0;
   byte frameSequnce = 0;
   const uint8_t readOrValues[23] = {
       0x80, 0x3f, 0x00, 0xff, 0xbf, 0xff, 0x3f, 0x00, 0xff, 0xbf, 0x7f, 0xff,
       0x9f, 0xff, 0xbf, 0xff, 0xff, 0x00, 0x00, 0xbf, 0x00, 0x00, 0x70};
+  float leftCapacitor = 0.0f;
+  float rightCapacitor = 0.0f;
 
  public:
   APU();
@@ -37,4 +43,6 @@ class APU {
   void step(int cycles);
   void handleWriteRouting(word address, byte data);
   byte handleReadRouting(word address) const;
+  float HighPassFilter(float in, float& capacitor);
+  // void DebugPrint() const;
 };

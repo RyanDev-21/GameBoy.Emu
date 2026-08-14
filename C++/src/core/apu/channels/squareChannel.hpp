@@ -14,14 +14,15 @@ class SquareChannel {
   bool envRunning = 0;
   byte envPeriod = 0;
   byte envPeriodLoad = 0;
-  byte timerLoad = 0;
+  word timerLoad = 0;
   word timer = 0;
   bool triggerbit = 0;
   bool enabled = 0;
+  bool dacEnabled = 0;
   bool lengthEnable = 0;
   byte lengthLoad = 0;
   word shadowFeq = 0;
-  bool sequencePointer = 0;
+  byte sequencePointer = 0;
   byte outputVol = 0;
   const bool dutyTable[4][8] = {
       {false, false, false, false, false, false, false, true},
@@ -43,4 +44,5 @@ class SquareChannel {
   byte readReg(word address) const;
   bool getEnvRunning() const;
   bool getRunning() const;
+  void DebugPrint() const;
 };

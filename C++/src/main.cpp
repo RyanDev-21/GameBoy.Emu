@@ -66,13 +66,13 @@ int main(int argc, char* argv[]) {
     bool isWhite =
         (white >
          0.95f * 160 * 144);  // is 95 percent white or not of this frame
-    if (isWhite & !wasWhite) {
-      fprintf(stderr,
-              "White detect at "
-              "frame:%d,whitePx=%d,pc=%04x,ly=%02x,lcdc=%02x\n",
-              frame, white, gameboy.m_programCounter,
-              gameboy.ReadMemory(0xFF44), gameboy.ReadMemory(0xFF40));
-    }
+    // if (isWhite & !wasWhite) {
+    //   fprintf(stderr,
+    //           "White detect at "
+    //           "frame:%d,whitePx=%d,pc=%04x,ly=%02x,lcdc=%02x\n",
+    //           frame, white, gameboy.m_programCounter,
+    //           gameboy.ReadMemory(0xFF44), gameboy.ReadMemory(0xFF40));
+    // }
 
     if (getenv("GB_DEBUG")) {
       fprintf(stderr, "\nBG_Paletter Value:\n");

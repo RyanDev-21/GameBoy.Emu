@@ -52,15 +52,17 @@ void SquareChannel::writeRegs(word address, byte data) {
     case 0x2: {
       volumeLoad = (data >> 4) & 0xF;
       envAddMode = ((data >> 3) & 0x1) != 0;
-      timerLoad = (data & 0x7);
+      dacEnabled = (data & 0xF8) != 0;
+      envPeriodLoad = (data & 0x7);
+      envPeriod = envPeriodLoad;
       volume = volumeLoad;
     } break;
     case 0x3: {
       // LSB
-      // frequency/timer is 11 bit long so have to take all the value
+      // frequency/timer is 11 bit long so have to take three bit  value
       // left of 11bit and then merge with new as the new one is going to
       // be a 8 bit it is just overwrite its lsb
-      timerLoad = (timerLoad & 0x7FF) | data;
+      timerLoad = (timerLoad & 0x700) | data;
     } break;
     case 0x4: {
       lengthEnable = ((data >> 6) & 0x01) != 0;
@@ -86,10 +88,10 @@ void SquareChannel::lengthClock() {
 void SquareChannel::Step() {
   if (--timer <= 0) {
     // 4 dots per cycle
-    timer = (2047 - timerLoad) * 4;
+    timer = (2048 - timerLoad) * 4;
     sequencePointer = (sequencePointer + 1) & 0x07;
   }
-  if (enabled) {
+  if (enabled && dacEnabled) {
     outputVol = volume;
   } else {
     outputVol = 0;
@@ -122,9 +124,9 @@ void SquareChannel::sweepClock() {
 word SquareChannel::sweepCalc() {
   word new_feq = shadowFeq >> sweepShift;
   if (negate) {
-    new_feq = new_feq + shadowFeq;
+    new_feq = new_feq - shadowFeq;
   } else {
-    new_feq = shadowFeq - new_feq;
+    new_feq = shadowFeq + new_feq;
   }
   if (new_feq > 2047) {
     enabled = false;
@@ -139,9 +141,9 @@ void SquareChannel::EnvClock() {
       envPeriod = 8;
     }
     if (envRunning && envPeriod > 0) {
-      if (envAddMode && envPeriod < 15) {
+      if (envAddMode && volume < 15) {
         volume++;
-      } else if (!envAddMode && envPeriod > 0) {
+      } else if (!envAddMode && volume > 0) {
         volume--;
       }
     }
@@ -153,19 +155,21 @@ void SquareChannel::EnvClock() {
 
 void SquareChannel::Trigger() {
   enabled = true;
+  timer = (2048 - timerLoad) * 4;
   if (lengthCounter == 0) {
     lengthCounter = 64;
   }
   envRunning = true;
   envPeriod = envPeriodLoad;
   volume = volumeLoad;
-  timer = (2047 - timerLoad) * 4;
   shadowFeq = timerLoad;
   sweepPeriod = sweepPeriodLoad;
   if (sweepPeriod == 0) {
     sweepPeriod = 8;
   }
-  enabled = sweepPeriod > 0 | sweepShift > 0;
+  // Do not override `enabled` here — triggering should enable the channel
+  // regardless of sweep configuration. The sweep may later disable the
+  // channel if it overflows during sweepCalc().
   if (sweepShift > 0) {
     sweepCalc();
   }
@@ -177,4 +181,27 @@ bool SquareChannel::getEnvRunning() const {
 
 bool SquareChannel::getRunning() const {
   return lengthCounter > 0;
+}
+
+void SquareChannel::DebugPrint() const {
+  fprintf(stderr, "Square Chanel\n");
+  fprintf(stderr, "**Timer** \ntimer:%d\n", timer);
+  fprintf(stderr, "TimerLoad:%d\n", timerLoad);
+  fprintf(stderr, "shadowFeq:%d\n", shadowFeq);
+  fprintf(stderr, "**Enabled And stuff** \ndacEnabled:%d\n", dacEnabled);
+  fprintf(stderr, "enabled:%d\n", enabled);
+  fprintf(stderr, "triggerBit:%d\n", triggerbit);
+  fprintf(stderr, "lengthEnabled:%d\n", lengthEnable);
+  fprintf(stderr, "**Volume**volume:%d\n", volume);
+  fprintf(stderr, "volume load :%d\n", volumeLoad);
+  fprintf(stderr, "outputVol:%d\n", outputVol);
+  fprintf(stderr, "**Envelop stuff**\n envAddMode:%d\n", envAddMode);
+  fprintf(stderr, "envelopPeriod:%d\n", envPeriod);
+  fprintf(stderr, "envelopPeriodLoad:%d\n", envPeriodLoad);
+  fprintf(stderr, "envelopRunning:%d\n", envRunning);
+  fprintf(stderr, "**Sweep**\nSweepPeriod:%d\n", sweepPeriod);
+  fprintf(stderr, "SweepPeriodLoad:%d\n", sweepPeriodLoad);
+  fprintf(stderr, "sweepShift:%d\n", sweepShift);
+  fprintf(stderr, "negate:%d\n", negate);
+  fprintf(stderr, "sequencePointer:%d\n", sequencePointer);
 }

@@ -123,7 +123,6 @@ void GameBoy::WriteMemory(word address, byte data) {
   // no write allowed for these regions
   else if (address >= 0xFEA0 && address < 0xFEFF) {
   } else if (address >= 0xFF10 && address <= 0xFF3F) {
-    fprintf(stderr, "APU write addr=%04X data=%02X\n", address, data);
     apu.handleWriteRouting(address, data);
   }
   // for SGB
@@ -254,7 +253,7 @@ byte GameBoy::ReadMemory(word address) const {
   else if (address >= 0xD000 && address <= 0xDFFF) {
     return m_wram[current_wramBank][address - 0xD000];
   } else if (address >= 0xFF10 && address <= 0xFF3F) {
-    fprintf(stderr, "APU read addr=%04X\n", address);
+    // fprintf(stderr, "APU read addr=%04X\n", address);
     apu.handleReadRouting(address);
   } else if (address == 0xFF4D) {
     return m_rom[0xFF4D];

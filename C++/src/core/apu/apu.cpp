@@ -2,9 +2,9 @@
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_audio.h>
+#include <SDL2/SDL_timer.h>
 
 APU::APU() {
-  
   SDL_Init(SDL_INIT_AUDIO);
   SDL_AudioSpec spec = {0};
   spec.freq = 44100;
@@ -14,9 +14,9 @@ APU::APU() {
   spec.callback = NULL;
   spec.userdata = this;
   device_id = SDL_OpenAudioDevice(NULL, 0, &spec, NULL, 0);
-if (device_id == 0) {
+  if (device_id == 0) {
     fprintf(stderr, "SDL_OpenAudioDevice failed: %s\n", SDL_GetError());
-}
+  }
   SDL_PauseAudioDevice(device_id, 0);
 }
 
@@ -78,7 +78,7 @@ void APU::step(int cycles) {
       float right = 0;
       float outChan[4] = {
           (float)square_1.GetOutPutVol() / 100.0f,
-          (float)square_1.GetOutPutVol() / 100.0f,
+          (float)square_2.GetOutPutVol() / 100.0f,
           (float)wave.getOutPutVol() / 100.0f,
           (float)noise.getOutputVol() / 100.0f,
       };
@@ -92,20 +92,24 @@ void APU::step(int cycles) {
       }
       // as sum is by 4 channel take average
       // but this is not necessary
-      left /= 4.0f;
-      right /= 4.0f;
+      // left /= 4.0f;
+      // right /= 4.0f;
+      //
+      left = HighPassFilter(left, leftCapacitor);
+      right = HighPassFilter(right, rightCapacitor);
 
-      mainBuffer[bufferFillAmount] = left;
-      mainBuffer[bufferFillAmount + 1] = right;
-      bufferFillAmount += 2;
-      // full
-      if (bufferFillAmount >= sample_size) {
+      // write interleaved stereo floats (two floats per frame)
+      mainBuffer[bufferFillAmount++] = left;
+      mainBuffer[bufferFillAmount++] = right;
+      // full (bufferFillAmount counts floats, sample_size is frames)
+
+      if (bufferFillAmount >= sample_size * 2) {
         bufferFillAmount = 0;
         while (SDL_GetQueuedAudioSize(device_id) >
-               sample_size * sizeof(float)) {
+               sample_size * 2 * sizeof(float)) {
           SDL_Delay(1);
         }
-        SDL_QueueAudio(device_id, &mainBuffer, sample_size * sizeof(float));
+        SDL_QueueAudio(device_id, mainBuffer, sample_size * 2 * sizeof(float));
       }
     }
   }
@@ -199,3 +203,15 @@ byte APU::handleReadRouting(word address) const {
   }
   return result;
 };
+
+float APU::HighPassFilter(float in, float& capacitor) {
+  float out = in - capacitor;
+  capacitor = in - out * kCharge;
+  return out;
+}
+
+// void APU::DebugPrint() const {
+//   for (int i = 0; i < sample_size; i++) {
+//     fprintf(stderr, "sample value at index %d : %f\n", i, mainBuffer[i]);
+//   }
+// }

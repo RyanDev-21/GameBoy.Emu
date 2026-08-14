@@ -11,16 +11,16 @@ byte NoiseChannel::readRegs(word address) const {
   byte currReg = (address & 0xF) % 0x05;
   byte result = 0;
   switch (currReg) {
-    case 0x1: result |= (64 - lengthCounter) & 0x3F; break;
-    case 0x2: {
+    case 0x0: result |= (64 - lengthCounter) & 0x3F; break;
+    case 0x1: {
       result |= (volumeLoad << 4) | (envelopAddmode & 0x01) << 3 |
                 (envelopPeriod & 0x07);
     } break;
-    case 0x3:
+    case 0x2:
       result |= (clockShift & 0xF) << 4 | (lsfrWidth & 0x01) << 3 |
                 (dividerCode & 0x07);
       break;
-    case 0x4: result |= (triggerBit & 0x01) << 7 | (lengthEnabled) << 6; break;
+    case 0x3: result |= (triggerBit & 0x01) << 7 | (lengthEnabled) << 6; break;
   }
 
   return result;
@@ -29,11 +29,11 @@ byte NoiseChannel::readRegs(word address) const {
 void NoiseChannel::writeRegs(word address, byte data) {
   byte currReg = (address & 0xF) % 0x05;
   switch (currReg) {
-    case 0x1: {
+    case 0x0: {
       byte lengthLoad = (data & 0x3F);
       lengthCounter = 64 - lengthLoad;
     } break;
-    case 0x2: {
+    case 0x1: {
       dacEnabled = (data & 0xF8) != 0;
       volumeLoad = (data >> 4) & 0xF;
       envelopAddmode = (data & 0x08) != 0;
@@ -41,12 +41,12 @@ void NoiseChannel::writeRegs(word address, byte data) {
       envelopPeriod = envelopPeriodLoad;
       volume = volumeLoad;
     } break;
-    case 0x3: {
-      clockShift = data & 0xF0;
+    case 0x2: {
+      clockShift = (data >> 4) & 0x0F;
       lsfrWidth = (data & 0x08) != 0;
       dividerCode = data & 0x07;
     } break;
-    case 0x4: {
+    case 0x3: {
       lengthEnabled = (data & 0x40) != 0;
       triggerBit = (data & 0x80) != 0;
       if (triggerBit) {
@@ -59,15 +59,21 @@ void NoiseChannel::writeRegs(word address, byte data) {
 void NoiseChannel::step() {
   if (--timer <= 0) {
     timer = dividerTable[dividerCode] << clockShift;  // this is so weird
-    // bit 0 and bit 1 are xored to form 15bit
-    byte extractBit = (lsfr & 0x01) ^ ((lsfr >> 1) & 0x01);
-    lsfr |= extractBit << 14;
-    // if this one is on then we need overwrite the 7 bit too
-    if (lsfrWidth) {
-      lsfr |= extractBit << 6;
-    }
+    // compute feedback from bit0 and bit1
+    byte feedback = (lsfr & 0x01) ^ ((lsfr >> 1) & 0x01);
     lsfr >>= 1;
-    if (enabled && dacEnabled && (lsfr & 0x01) == 0) {
+    lsfr |= (word)(feedback << 14);
+    // if width mode (7-bit LFSR) also set bit 6 to feedback
+    if (lsfrWidth) {
+      // clear bit 6 then set it to feedback
+      lsfr &= ~(1 << 6);
+      lsfr |= (word)(feedback << 6);
+    }
+    // select output bit depending on width mode
+    byte outBit = lsfr & 0x01;
+    if (lsfrWidth)
+      outBit = (lsfr >> 6) & 0x01;
+    if (enabled && dacEnabled && outBit == 0) {
       outputVol = volume;
     } else {
       outputVol = 0;
@@ -89,7 +95,7 @@ void NoiseChannel::envClock() {
       }
     }
     if (volume == 15 || volume == 0) {
-      envelopRunning = true;
+      envelopRunning = false;
     }
   }
 }
@@ -126,4 +132,24 @@ bool NoiseChannel::getEnvRunning() const {
 
 bool NoiseChannel::getRunning() const {
   return lengthCounter > 0;
+}
+
+void NoiseChannel::DebugPrint() const {
+  fprintf(stderr, "Noise Chanel\n");
+  fprintf(stderr, "**Timer** \ntimer:%d\n", timer);
+  fprintf(stderr, "dividerCode:%d\n", dividerCode);
+  fprintf(stderr, "**Enabled And stuff** \ndacEnabled:%d\n", dacEnabled);
+  fprintf(stderr, "enabled:%d\n", enabled);
+  fprintf(stderr, "triggerBit:%d\n", triggerBit);
+  fprintf(stderr, "lengthEnabled:%d\n", lengthEnabled);
+  fprintf(stderr, "**Volume**volume:%d\n", volume);
+  fprintf(stderr, "volume load :%d\n", volumeLoad);
+  fprintf(stderr, "outputVol:%d\n", outputVol);
+  fprintf(stderr, "**Envelop stuff**\n envAddMode:%d\n", envelopAddmode);
+  fprintf(stderr, "envelopPeriod:%d\n", envelopPeriod);
+  fprintf(stderr, "envelopPeriodLoad:%d\n", envelopPeriodLoad);
+  fprintf(stderr, "envelopRunning:%d\n", envelopRunning);
+  fprintf(stderr, "**LSFR**\nlsfr:%d\n", lsfr);
+  fprintf(stderr, "clockShift:%d\n", clockShift);
+  fprintf(stderr, "lsfrWidth:%d\n", lsfrWidth);
 }

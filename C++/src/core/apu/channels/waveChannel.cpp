@@ -33,7 +33,7 @@ void WaveChannel::writeRegs(word address, byte data) {
   if (address >= 0xFF1A && address <= 0xFF1E) {
     switch (regVal) {
       case 0xA: {
-        dacEnabled = (data & 0x8) != 0;
+        dacEnabled = (data & 0x80) != 0;
       } break;
       case 0xB: {
         byte lengthLoad = data;
@@ -43,7 +43,7 @@ void WaveChannel::writeRegs(word address, byte data) {
       case 0xD:
         // LSB
         // same as SquareChannel
-        timerLoad = (timerLoad & 0x7FF) | data;
+        timerLoad = (timerLoad & 0x700) | data;
         break;
       case 0xE:
         // MSB
@@ -64,17 +64,17 @@ void WaveChannel::writeRegs(word address, byte data) {
 // two samples each 4-bit
 void WaveChannel::step() {
   if (--timer <= 0) {
-    timer = (2047 - timerLoad) * 2;
+    timer = (2048 - timerLoad) * 2;
     positionCounter = (positionCounter + 1) & 0x1F;
   }
   if (enabled && dacEnabled) {
     int position = positionCounter / 2;
     byte outputByte = waveTable[position];
-    // this means that this is the odd index one
-    if ((outputByte & 0x01) != 0) {
-      outputByte >>= 4;
+    // select upper/lower nibble based on positionCounter parity
+    if ((positionCounter & 1) != 0) {
+      outputByte = outputByte & 0x0F;
     } else {
-      outputByte &= 0x0F;
+      outputByte = (outputByte >> 4) & 0x0F;
     }
     // The DAC receives the current value from the upper/lower nibble of the
     // sample buffer, shifted right by the volume control.(from gbdev.gg8.se)
@@ -99,10 +99,10 @@ void WaveChannel::lengthClock() {
 void WaveChannel::trigger() {
   enabled = true;
   if (lengthCounter == 0) {
-    lengthCounter = 255;
+    lengthCounter = 256;
   }
   // 2 dots per cycle
-  timer = (2047 - timerLoad) * 2;
+  timer = (2048 - timerLoad) * 2;
   positionCounter = 0;
 }
 byte WaveChannel::getOutPutVol() const {
@@ -114,16 +114,16 @@ bool WaveChannel::getRunning() const {
 }
 
 void WaveChannel::DebugPrint() const {
-  fprintf(stdout, "Wave Chanel\n");
-  fprintf(stdout, "timerLoad :%d\n", timerLoad);
-  fprintf(stdout, "timer:%d\n", timer);
-  fprintf(stdout, "dacEnabled:%d\n", dacEnabled);
-  fprintf(stdout, "volumeCode:%d\n", volumeCode);
-  fprintf(stdout, "outputVol:%d\n", outputVol);
-  fprintf(stdout, "lengthEnable:%d\n", lengthEnable);
-  fprintf(stdout, "enabled:%d\n", enabled);
-  fprintf(stdout, "positionCounter:%d\n", positionCounter);
+  fprintf(stderr, "Wave Chanel\n");
+  fprintf(stderr, "timerLoad :%d\n", timerLoad);
+  fprintf(stderr, "timer:%d\n", timer);
+  fprintf(stderr, "dacEnabled:%d\n", dacEnabled);
+  fprintf(stderr, "volumeCode:%d\n", volumeCode);
+  fprintf(stderr, "outputVol:%d\n", outputVol);
+  fprintf(stderr, "lengthEnable:%d\n", lengthEnable);
+  fprintf(stderr, "enabled:%d\n", enabled);
+  fprintf(stderr, "positionCounter:%d\n", positionCounter);
   for (int i = 0; i < 16; i++) {
-    fprintf(stdout, "waveTable value at index %d:%d\n", i, waveTable[i]);
+    fprintf(stderr, "waveTable value at index %d:%d\n", i, waveTable[i]);
   }
 }
