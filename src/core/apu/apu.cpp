@@ -7,6 +7,7 @@
 APU::APU() {
   SDL_Init(SDL_INIT_AUDIO);
   SDL_AudioSpec spec = {0};
+  // spec.freq = 44100;
   spec.freq = 44100;
   spec.format = AUDIO_F32SYS;
   spec.channels = 2;
@@ -72,44 +73,85 @@ void APU::step(int cycles) {
     square_2.Step();
     wave.step();
     noise.step();
-    if (--downSampleCount <= 0) {
-      downSampleCount = 95;
-      float left = 0;
-      float right = 0;
-      float outChan[4] = {
-          (float)square_1.GetOutPutVol() / 100.0f,
-          (float)square_2.GetOutPutVol() / 100.0f,
-          (float)wave.getOutPutVol() / 100.0f,
-          (float)noise.getOutputVol() / 100.0f,
-      };
-      for (int i = 0; i < 4; i++) {
-        if (leftEnabled[i]) {
-          left += outChan[i] * ((float)leftVolume / 7.0f);
-        }
-        if (rightEnabled[i]) {
-          right += outChan[i] * ((float)rightVolume / 7.0f);
-        }
+
+    if (--downSampleCounter <= 0) {
+      downSampleCounter = 87;
+
+      // Left
+      float bufferin0 = 0;
+      float bufferin1 = 0;
+      int volume = (128 * leftVolume) /
+                   7;  // Should approximate an integer for the mixer volume
+      if (leftEnabled[0]) {
+        bufferin1 = ((float)square_1.GetOutPutVol()) / 100;
+        SDL_MixAudioFormat((Uint8*)&bufferin0, (Uint8*)&bufferin1, AUDIO_F32SYS,
+                           sizeof(float), volume);
       }
-      // as sum is by 4 channel take average
+      if (leftEnabled[1]) {
+        bufferin1 = ((float)square_2.GetOutPutVol()) / 100;
+        SDL_MixAudioFormat((Uint8*)&bufferin0, (Uint8*)&bufferin1, AUDIO_F32SYS,
+                           sizeof(float), volume);
+      }
+      if (leftEnabled[2]) {
+        bufferin1 = ((float)wave.getOutPutVol()) / 100;
+        SDL_MixAudioFormat((Uint8*)&bufferin0, (Uint8*)&bufferin1, AUDIO_F32SYS,
+                           sizeof(float), volume);
+      }
+      if (leftEnabled[3]) {
+        bufferin1 = ((float)noise.getOutputVol()) / 100;
+        SDL_MixAudioFormat((Uint8*)&bufferin0, (Uint8*)&bufferin1, AUDIO_F32SYS,
+                           sizeof(float), volume);
+      }
+      mainBuffer[bufferFillAmount] = bufferin0;
+
+      // Right
+      bufferin0 = 0;
+      volume = (128 * rightVolume) / 7;
+      if (rightEnabled[0]) {
+        bufferin1 = ((float)square_1.GetOutPutVol()) / 100;
+        SDL_MixAudioFormat((Uint8*)&bufferin0, (Uint8*)&bufferin1, AUDIO_F32SYS,
+                           sizeof(float), volume);
+      }
+      if (rightEnabled[1]) {
+        bufferin1 = ((float)square_2.GetOutPutVol()) / 100;
+        SDL_MixAudioFormat((Uint8*)&bufferin0, (Uint8*)&bufferin1, AUDIO_F32SYS,
+                           sizeof(float), volume);
+      }
+      if (rightEnabled[2]) {
+        bufferin1 = ((float)wave.getOutPutVol()) / 100;
+        SDL_MixAudioFormat((Uint8*)&bufferin0, (Uint8*)&bufferin1, AUDIO_F32SYS,
+                           sizeof(float), volume);
+      }
+      if (rightEnabled[3]) {
+        bufferin1 = ((float)noise.getOutputVol()) / 100;
+        SDL_MixAudioFormat((Uint8*)&bufferin0, (Uint8*)&bufferin1, AUDIO_F32SYS,
+                           sizeof(float), volume);
+      }
+
+      // AudioHandler::playAudio();
+      //  Section below off to play audio
+      mainBuffer[bufferFillAmount + 1] = bufferin0;
+
+      bufferFillAmount += 2;  // as sum is by 4 channel take average
       // but this is not necessary
       // left /= 4.0f;
       // right /= 4.0f;
       //
-      left = HighPassFilter(left, leftCapacitor);
-      right = HighPassFilter(right, rightCapacitor);
+      // left = HighPassFilter(left, leftCapacitor);
+      // right = HighPassFilter(right, rightCapacitor);
 
       // write interleaved stereo floats (two floats per frame)
-      mainBuffer[bufferFillAmount++] = left;
-      mainBuffer[bufferFillAmount++] = right;
+      // mainBuffer[bufferFillAmount++] = left;
+      // mainBuffer[bufferFillAmount++] = right;
       // full (bufferFillAmount counts floats, sample_size is frames)
 
-      if (bufferFillAmount >= sample_size * 2) {
+      if (bufferFillAmount >= sample_size) {
         bufferFillAmount = 0;
         while (SDL_GetQueuedAudioSize(device_id) >
-               sample_size * 2 * sizeof(float)) {
+               sample_size * sizeof(float)) {
           SDL_Delay(1);
         }
-        SDL_QueueAudio(device_id, mainBuffer, sample_size * 2 * sizeof(float));
+        SDL_QueueAudio(device_id, mainBuffer, sample_size * sizeof(float));
       }
     }
   }
@@ -131,9 +173,9 @@ void APU::handleWriteRouting(word address, byte data) {
     switch (reg) {
       case 0x24:
         leftVinEnable = (data & 0x80) != 0;
-        leftVolume = (data >> 4) & 0x07;
-        rightVinEnable = (data & 0x08) != 0;
-        rightVolume = data & 0x07;
+        leftVolume = (data >> 4) & 0x7;
+        rightVinEnable = (data & 0x8) != 0;
+        rightVolume = data & 0x7;
         break;
       case 0x25:
         for (int i = 0; i < 4; i++) {
@@ -204,12 +246,12 @@ byte APU::handleReadRouting(word address) const {
   return result;
 };
 
-float APU::HighPassFilter(float in, float& capacitor) {
-  float out = in - capacitor;
-  capacitor = in - out * kCharge;
-  return out;
-}
-
+// float APU::HighPassFilter(float in, float& capacitor) {
+//   float out = in - capacitor;
+//   capacitor = in - out * kCharge;
+//   return out;
+// }
+//
 // void APU::DebugPrint() const {
 //   for (int i = 0; i < sample_size; i++) {
 //     fprintf(stderr, "sample value at index %d : %f\n", i, mainBuffer[i]);

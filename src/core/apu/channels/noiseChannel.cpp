@@ -35,6 +35,9 @@ void NoiseChannel::writeRegs(word address, byte data) {
     } break;
     case 0x1: {
       dacEnabled = (data & 0xF8) != 0;
+      if (!dacEnabled) {
+        enabled = false;
+      }
       volumeLoad = (data >> 4) & 0xF;
       envelopAddmode = (data & 0x08) != 0;
       envelopPeriodLoad = data & 0x7;
@@ -44,7 +47,7 @@ void NoiseChannel::writeRegs(word address, byte data) {
     case 0x2: {
       clockShift = (data >> 4) & 0x0F;
       lsfrWidth = (data & 0x08) != 0;
-      dividerCode = data & 0x07;
+      dividerCode = data & 0x7;
     } break;
     case 0x3: {
       lengthEnabled = (data & 0x40) != 0;
@@ -102,8 +105,9 @@ void NoiseChannel::envClock() {
 void NoiseChannel::lengthClock() {
   if (lengthEnabled && lengthCounter > 0) {
     lengthCounter--;
-  } else if (lengthCounter == 0) {
-    enabled = false;
+    if (lengthCounter == 0) {
+      enabled = false;
+    }
   }
 }
 void NoiseChannel::trigger() {
@@ -120,6 +124,9 @@ void NoiseChannel::trigger() {
   volume = volumeLoad;
 
   lsfr = 0x7FFF;  // based on gbdev.gg8.se
+  if (!dacEnabled) {
+    enabled = false;
+  }
 }
 
 byte NoiseChannel::getOutputVol() const {

@@ -198,7 +198,6 @@ void GameBoy::WriteMemory(word address, byte data) {
     m_wram[0][address - 0xC000] = data;
   } else if (address >= 0xD000 && address <= 0xDFFF) {
     m_wram[current_wramBank][address - 0xD000] = data;
-
   }
   // others
   else {
@@ -253,7 +252,6 @@ byte GameBoy::ReadMemory(word address) const {
   else if (address >= 0xD000 && address <= 0xDFFF) {
     return m_wram[current_wramBank][address - 0xD000];
   } else if (address >= 0xFF10 && address <= 0xFF3F) {
-    // fprintf(stderr, "APU read addr=%04X\n", address);
     apu.handleReadRouting(address);
   } else if (address == 0xFF4D) {
     return m_rom[0xFF4D];
@@ -305,13 +303,13 @@ void GameBoy::HandleBanking(word address, byte data) {
     if (m_MBC5) {
       current_ramBank = data & 0xFF;
     }
-    // do ROM enable
-    else if (address >= 0x6000 && address < 0x8000) {
-      if (m_MBC1) {
-        DoChangeROMRAMBank(data);
-      } else if (m_MBC3) {
-        handleRTCLatch(data);
-      }
+  }
+  // do ROM enable
+  else if (address >= 0x6000 && address < 0x8000) {
+    if (m_MBC1) {
+      DoChangeROMRAMBank(data);
+    } else if (m_MBC3) {
+      handleRTCLatch(data);
     }
   }
 }

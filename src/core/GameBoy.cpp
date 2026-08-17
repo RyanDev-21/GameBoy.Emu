@@ -129,56 +129,56 @@ const byte* GameBoy::GetScreenData() const {
   return (const byte*)m_screenData;
 }
 
-void GameBoy::RunTestMode(int maxFrames) {
-  Debug::Print("Running in headless test mode...\n");
-  Debug::PrintROMHeader(*this);
-
-  bool restarted = false;
-  static bool firstStart = true;
-  for (int frame = 0; frame < maxFrames && !restarted; frame++) {
-    int cyclesThisFrame = 0;
-    while (cyclesThisFrame < 70224) {
-      cyclesThisFrame += Update();
-
-      // Detect restart: if PC reaches the ROM entry point after first run
-      if (m_programCounter == 0x0637 && !m_RestartDetected) {
-        if (!firstStart) {
-          m_RestartDetected = true;
-        }
-        firstStart = false;
-      }
-
-      if (m_RestartDetected) {
-        Debug::Print("Stopping due to restart detection at frame %d.\n", frame);
-        restarted = true;
-        break;
-      }
-    }
-    if (!restarted && (frame < 60 || frame % 1000 == 0)) {
-      Debug::PrintFrameInfo(frame, m_programCounter, m_stackPointer.reg,
-                            ReadMemory(0xFF0F), ReadMemory(0xFFFF));
-    }
-  }
-  // Printing out to reason
-  fprintf(stderr, "PC=%04x ,LY=%02x, LCDC=%02x, SCY =%02x,WY=%02x,WX=%02x\n",
-          ReadMemory(m_programCounter), ReadMemory(0xFF44), ReadMemory(0xFF40),
-          ReadMemory(0xFF42), ReadMemory(0xFF4A), ReadMemory(0xFF4B));
-
-  for (int i = 0; i < 0x40; i += 2) {
-    fprintf(stderr, "%02x%02x", m_BGPalette[i + 1], m_BGPalette[i]);
-    fprintf(stderr, "\nhdmaActive=%d hdmaRemaining=%d hdmaHBlank=%d\n",
-            m_hdmaActive, m_hdmaRemaining, m_hdmaHBlankMode);
-  };
-  Debug::Print("Done. Screen output:\n\n");
-  Debug::DumpScreenASCII((const byte*)m_screenData);
-  {
-    FILE* f = fopen("/tmp/crystal_shot.ppm", "wb");
-    fprintf(f, "P6\n160 144\n255\n");
-    fwrite(m_screenData, 1, 160 * 144 * 4, f);
-    fclose(f);
-  }
-  Debug::PrintSerialOutput((const char*)m_SerialOutput);
-}
+// void GameBoy::RunTestMode(int maxFrames) {
+//   Debug::Print("Running in headless test mode...\n");
+//   Debug::PrintROMHeader(*this);
+//
+//   bool restarted = false;
+//   static bool firstStart = true;
+//   for (int frame = 0; frame < maxFrames && !restarted; frame++) {
+//     int cyclesThisFrame = 0;
+//     while (cyclesThisFrame < 70224) {
+//       cyclesThisFrame += Update();
+//
+//       // Detect restart: if PC reaches the ROM entry point after first run
+//       if (m_programCounter == 0x0637 && !m_RestartDetected) {
+//         if (!firstStart) {
+//           m_RestartDetected = true;
+//         }
+//         firstStart = false;
+//       }
+//
+//       if (m_RestartDetected) {
+//         Debug::Print("Stopping due to restart detection at frame %d.\n",
+//         frame); restarted = true; break;
+//       }
+//     }
+//     if (!restarted && (frame < 60 || frame % 1000 == 0)) {
+//       Debug::PrintFrameInfo(frame, m_programCounter, m_stackPointer.reg,
+//                             ReadMemory(0xFF0F), ReadMemory(0xFFFF));
+//     }
+//   }
+//   // Printing out to reason
+//   fprintf(stderr, "PC=%04x ,LY=%02x, LCDC=%02x, SCY =%02x,WY=%02x,WX=%02x\n",
+//           ReadMemory(m_programCounter), ReadMemory(0xFF44),
+//           ReadMemory(0xFF40), ReadMemory(0xFF42), ReadMemory(0xFF4A),
+//           ReadMemory(0xFF4B));
+//
+//   for (int i = 0; i < 0x40; i += 2) {
+//     fprintf(stderr, "%02x%02x", m_BGPalette[i + 1], m_BGPalette[i]);
+//     fprintf(stderr, "\nhdmaActive=%d hdmaRemaining=%d hdmaHBlank=%d\n",
+//             m_hdmaActive, m_hdmaRemaining, m_hdmaHBlankMode);
+//   };
+//   Debug::Print("Done. Screen output:\n\n");
+//   Debug::DumpScreenASCII((const byte*)m_screenData);
+//   {
+//     FILE* f = fopen("/tmp/crystal_shot.ppm", "wb");
+//     fprintf(f, "P6\n160 144\n255\n");
+//     fwrite(m_screenData, 1, 160 * 144 * 4, f);
+//     fclose(f);
+//   }
+//   Debug::PrintSerialOutput((const char*)m_SerialOutput);
+// }
 
 bool GameBoy::SaveRam(const char* savPath) {
   FILE* file = fopen(savPath, "wb");

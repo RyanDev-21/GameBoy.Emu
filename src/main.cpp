@@ -1,6 +1,6 @@
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
+// #include <cstdlib>
+// #include <cstring>
 #include <filesystem>
 #include <stdexcept>
 
@@ -20,7 +20,7 @@ int countWhitePixel(const byte* screen) {
 }
 int main(int argc, char* argv[]) {
   if (argc < 2) {
-    fprintf(stderr, "Usage: %s <rom_path> [--test]\n", argv[0]);
+    fprintf(stderr, "Usage: %s <rom_path> \n", argv[0]);
     return 1;
   }
   const char* romName = argv[1];
@@ -35,17 +35,17 @@ int main(int argc, char* argv[]) {
   gameboy.LoadRam(filePath.c_str());
 
   // for test mode
-  bool testMode = false;
+  // bool testMode = false;
   // skip the exec && romPath
-  for (int i = 2; i < argc; i++) {
-    if (strcmp(argv[i], "--test") == 0)
-      testMode = true;
-  }
-
-  if (testMode) {
-    gameboy.RunTestMode(36000);
-    return 0;
-  }
+  // for (int i = 2; i < argc; i++) {
+  //   if (strcmp(argv[i], "--test") == 0)
+  //     testMode = true;
+  // }
+  //
+  // if (testMode) {
+  //   gameboy.RunTestMode(36000);
+  //   return 0;
+  // }
 
   Platform platform("GameBoy", 1024, 768, 160, 144);
 
@@ -62,10 +62,12 @@ int main(int argc, char* argv[]) {
       cyclesThisFrame += gameboy.Update();
     }
     platform.Update(gameboy.GetScreenData(), 160 * 4);
-    int white = countWhitePixel(gameboy.GetScreenData());
-    bool isWhite =
-        (white >
-         0.95f * 160 * 144);  // is 95 percent white or not of this frame
+
+    // These commented out lines are for when i was debugging
+    // int white = countWhitePixel(gameboy.GetScreenData());
+    // bool isWhite =
+    //     (white >
+    //      0.95f * 160 * 144);  // is 95 percent white or not of this frame
     // if (isWhite & !wasWhite) {
     //   fprintf(stderr,
     //           "White detect at "
@@ -74,25 +76,26 @@ int main(int argc, char* argv[]) {
     //           gameboy.ReadMemory(0xFF44), gameboy.ReadMemory(0xFF40));
     // }
 
-    if (getenv("GB_DEBUG")) {
-      fprintf(stderr, "\nBG_Paletter Value:\n");
-      const word* palette_data = gameboy.getBG_Palette();
-      for (int i = 0; i < 32; i++) {
-        fprintf(stderr, "%04x", palette_data[i]);
-      }
-      fprintf(stderr, "\nWY=%02x,WX=%02x,VBK=%02x,pc=%04x,ly=%02x,lcdc=%02x\n",
-              gameboy.ReadMemory(0xFF4A), gameboy.ReadMemory(0xFF4B),
-
-              gameboy.ReadMemory(0xFF4F), gameboy.m_programCounter,
-              gameboy.ReadMemory(0xFF44), gameboy.ReadMemory(0xFF40));
-      delete palette_data;
-      const byte* vramData = gameboy.GetVram(0);
-      fprintf(stderr, "\nWinMap:\n");
-      for (int i = 0; i < 16; i++) {
-        fprintf(stderr, "%02x", vramData[0x1C00 + i]);
-      }
-      fprintf(stderr, "\n");
-    }
+    // if (getenv("GB_DEBUG")) {
+    //   fprintf(stderr, "\nBG_Paletter Value:\n");
+    //   const word* palette_data = gameboy.getBG_Palette();
+    //   for (int i = 0; i < 32; i++) {
+    //     fprintf(stderr, "%04x", palette_data[i]);
+    //   }
+    //   fprintf(stderr,
+    //   "\nWY=%02x,WX=%02x,VBK=%02x,pc=%04x,ly=%02x,lcdc=%02x\n",
+    //           gameboy.ReadMemory(0xFF4A), gameboy.ReadMemory(0xFF4B),
+    //
+    //           gameboy.ReadMemory(0xFF4F), gameboy.m_programCounter,
+    //           gameboy.ReadMemory(0xFF44), gameboy.ReadMemory(0xFF40));
+    //   delete palette_data;
+    //   const byte* vramData = gameboy.GetVram(0);
+    //   fprintf(stderr, "\nWinMap:\n");
+    //   for (int i = 0; i < 16; i++) {
+    //     fprintf(stderr, "%02x", vramData[0x1C00 + i]);
+    //   }
+    //   fprintf(stderr, "\n");
+    // }
   }
 
   try {

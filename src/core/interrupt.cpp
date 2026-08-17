@@ -12,7 +12,8 @@ void GameBoy::RequestInterrupt(int id) {
 // Bit 0: V-Blank
 // Bit 1:LCD
 // Bit 2:Timer
-// Bit 3:Joypad
+// Bit 3:Serial
+// Bit 4: JoyPad
 byte GameBoy::DoInterrupts() {
   if (m_MasterInterrupt) {
     byte req = ReadMemory(0xFF0F);
@@ -49,7 +50,7 @@ void GameBoy::ServiceInterrupt(int interrupt) {
     case 0: m_programCounter = 0x40; break;
     case 1: m_programCounter = 0x48; break;
     case 2: m_programCounter = 0x50; break;
-    case 3: m_programCounter = 0x60; break;
+    case 3: m_programCounter = 0x58; break;
     case 4: m_programCounter = 0x60; break;
   }
 }
