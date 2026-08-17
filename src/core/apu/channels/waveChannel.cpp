@@ -34,6 +34,9 @@ void WaveChannel::writeRegs(word address, byte data) {
     switch (regVal) {
       case 0xA: {
         dacEnabled = (data & 0x80) != 0;
+        if (!dacEnabled) {
+          enabled = false;
+        }
       } break;
       case 0xB: {
         byte lengthLoad = data;
@@ -89,10 +92,13 @@ void WaveChannel::step() {
 }
 
 void WaveChannel::lengthClock() {
-  if (lengthCounter > 0 && lengthEnable) {
-    lengthCounter--;
-  } else if (lengthCounter == 0) {
-    enabled = 0;
+  if (lengthEnable) {
+    if (lengthCounter > 0) {
+      lengthCounter--;
+    }
+    if (lengthCounter == 0) {
+      enabled = 0;
+    }
   }
 };
 

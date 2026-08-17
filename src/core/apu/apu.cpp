@@ -74,77 +74,35 @@ void APU::step(int cycles) {
     wave.step();
     noise.step();
 
-    if (--downSampleCounter <= 0) {
-      downSampleCounter = 87;
-
-      // Left
-      float bufferin0 = 0;
-      float bufferin1 = 0;
-      int volume = (128 * leftVolume) /
-                   7;  // Should approximate an integer for the mixer volume
-      if (leftEnabled[0]) {
-        bufferin1 = ((float)square_1.GetOutPutVol()) / 100;
-        SDL_MixAudioFormat((Uint8*)&bufferin0, (Uint8*)&bufferin1, AUDIO_F32SYS,
-                           sizeof(float), volume);
+    float left = 0;
+    float right = 0;
+    float outPutChan[4] = {
+        (float)square_1.GetOutPutVol() / 100.0f,
+        (float)square_2.GetOutPutVol() / 100.0f,
+        (float)wave.getOutPutVol() / 100.0f,
+        (float)noise.getOutputVol() / 100.0f,
+    };
+    for (int i = 0; i < 4; i++) {
+      if (leftEnabled[i]) {
+        left += outPutChan[i] * (float)leftVolume / 7.0f;
       }
-      if (leftEnabled[1]) {
-        bufferin1 = ((float)square_2.GetOutPutVol()) / 100;
-        SDL_MixAudioFormat((Uint8*)&bufferin0, (Uint8*)&bufferin1, AUDIO_F32SYS,
-                           sizeof(float), volume);
+      if (rightEnabled[i]) {
+        right += outPutChan[i] * (float)rightVolume / 7.0f;
       }
-      if (leftEnabled[2]) {
-        bufferin1 = ((float)wave.getOutPutVol()) / 100;
-        SDL_MixAudioFormat((Uint8*)&bufferin0, (Uint8*)&bufferin1, AUDIO_F32SYS,
-                           sizeof(float), volume);
-      }
-      if (leftEnabled[3]) {
-        bufferin1 = ((float)noise.getOutputVol()) / 100;
-        SDL_MixAudioFormat((Uint8*)&bufferin0, (Uint8*)&bufferin1, AUDIO_F32SYS,
-                           sizeof(float), volume);
-      }
-      mainBuffer[bufferFillAmount] = bufferin0;
-
-      // Right
-      bufferin0 = 0;
-      volume = (128 * rightVolume) / 7;
-      if (rightEnabled[0]) {
-        bufferin1 = ((float)square_1.GetOutPutVol()) / 100;
-        SDL_MixAudioFormat((Uint8*)&bufferin0, (Uint8*)&bufferin1, AUDIO_F32SYS,
-                           sizeof(float), volume);
-      }
-      if (rightEnabled[1]) {
-        bufferin1 = ((float)square_2.GetOutPutVol()) / 100;
-        SDL_MixAudioFormat((Uint8*)&bufferin0, (Uint8*)&bufferin1, AUDIO_F32SYS,
-                           sizeof(float), volume);
-      }
-      if (rightEnabled[2]) {
-        bufferin1 = ((float)wave.getOutPutVol()) / 100;
-        SDL_MixAudioFormat((Uint8*)&bufferin0, (Uint8*)&bufferin1, AUDIO_F32SYS,
-                           sizeof(float), volume);
-      }
-      if (rightEnabled[3]) {
-        bufferin1 = ((float)noise.getOutputVol()) / 100;
-        SDL_MixAudioFormat((Uint8*)&bufferin0, (Uint8*)&bufferin1, AUDIO_F32SYS,
-                           sizeof(float), volume);
-      }
-
-      // AudioHandler::playAudio();
-      //  Section below off to play audio
-      mainBuffer[bufferFillAmount + 1] = bufferin0;
-
-      bufferFillAmount += 2;  // as sum is by 4 channel take average
-      // but this is not necessary
-      // left /= 4.0f;
-      // right /= 4.0f;
-      //
-      // left = HighPassFilter(left, leftCapacitor);
-      // right = HighPassFilter(right, rightCapacitor);
-
-      // write interleaved stereo floats (two floats per frame)
-      // mainBuffer[bufferFillAmount++] = left;
-      // mainBuffer[bufferFillAmount++] = right;
-      // full (bufferFillAmount counts floats, sample_size is frames)
-
+    }
+    // for low-pass filter
+    accuLeft += left;
+    accuRight += right;
+    accuCount++;
+    downSamplePhase -= 1.0;
+    if (downSamplePhase <= 0.0) {
+      // has to carry the remainder of cyclePerSample forward
+      downSamplePhase += cyclePerSample;  // 4194304/44100~95
+      mainBuffer[bufferFillAmount++] = accuLeft / accuCount;
+      mainBuffer[bufferFillAmount++] = accuRight / accuCount;
+      accuLeft = 0;
+      accuRight = 0;
+      accuCount = 0;
       if (bufferFillAmount >= sample_size) {
         bufferFillAmount = 0;
         while (SDL_GetQueuedAudioSize(device_id) >
@@ -251,7 +209,7 @@ byte APU::handleReadRouting(word address) const {
 //   capacitor = in - out * kCharge;
 //   return out;
 // }
-//
+
 // void APU::DebugPrint() const {
 //   for (int i = 0; i < sample_size; i++) {
 //     fprintf(stderr, "sample value at index %d : %f\n", i, mainBuffer[i]);

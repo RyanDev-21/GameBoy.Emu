@@ -21,7 +21,6 @@ class APU {
   byte leftVolume = 0;
   byte rightVolume = 0;
   bool powerControl = false;
-  int downSampleCounter = 87;
   int bufferFillAmount = 0;
   SDL_AudioDeviceID device_id;
   // stereo interleaved buffer: `sample_size` frames × 2 channels
@@ -31,6 +30,11 @@ class APU {
   const uint8_t readOrValues[23] = {
       0x80, 0x3f, 0x00, 0xff, 0xbf, 0xff, 0x3f, 0x00, 0xff, 0xbf, 0x7f, 0xff,
       0x9f, 0xff, 0xbf, 0xff, 0xff, 0x00, 0x00, 0xbf, 0x00, 0x00, 0x70};
+  float accuLeft = 0;
+  float accuRight = 0;
+  int accuCount = 0;
+  float downSamplePhase = 0.0f;
+  const double cyclePerSample = 4194304.0 / 44100.0;
 
  public:
   APU();

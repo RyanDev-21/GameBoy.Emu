@@ -85,12 +85,15 @@ void NoiseChannel::step() {
 }
 
 void NoiseChannel::envClock() {
+  if (envelopPeriodLoad == 0) {
+    return;
+  }
   if (--envelopPeriod <= 0) {
     envelopPeriod = envelopPeriodLoad;
     if (envelopPeriod == 0) {
       envelopPeriod = 8;
     }
-    if (envelopRunning && envelopPeriod > 0) {
+    if (envelopRunning) {
       if (envelopAddmode && volume < 15) {
         volume++;
       } else if (!envelopAddmode && volume > 0) {
@@ -106,11 +109,16 @@ void NoiseChannel::lengthClock() {
   if (lengthEnabled && lengthCounter > 0) {
     lengthCounter--;
     if (lengthCounter == 0) {
+      // printf("[NOISE] length expired, disabling\n");
       enabled = false;
     }
   }
 }
 void NoiseChannel::trigger() {
+  // printf("[NOISE] trigger! len=%d lenEnabled=%d envPeriod=%d vol=%d
+  // dac=%d\n",
+  //        lengthCounter, lengthEnabled, envelopPeriodLoad, volumeLoad,
+  //        dacEnabled);
   enabled = true;
   if (lengthCounter == 0) {
     lengthCounter = 64;

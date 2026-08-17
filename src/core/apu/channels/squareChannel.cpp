@@ -53,6 +53,9 @@ void SquareChannel::writeRegs(word address, byte data) {
       volumeLoad = (data >> 4) & 0xF;
       envAddMode = ((data >> 3) & 0x1) != 0;
       dacEnabled = (data & 0xF8) != 0;
+      if (!dacEnabled) {
+        enabled = false;
+      }
       envPeriodLoad = (data & 0x7);
       envPeriod = envPeriodLoad;
       volume = volumeLoad;
@@ -78,10 +81,13 @@ void SquareChannel::writeRegs(word address, byte data) {
 }
 
 void SquareChannel::lengthClock() {
-  if (lengthCounter > 0 && lengthEnable) {
-    lengthCounter--;
-  } else if (lengthCounter == 0) {
-    enabled = false;
+  if (lengthEnable) {
+    if (lengthCounter > 0) {
+      lengthCounter--;
+    }
+    if (lengthCounter == 0) {
+      enabled = false;
+    }
   }
 }
 
