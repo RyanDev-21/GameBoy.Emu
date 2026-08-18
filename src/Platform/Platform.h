@@ -7,12 +7,17 @@
 #include <iostream>
 #include <map>
 
+#include "../../imgui/imgui_impl_sdl2.h"
+#include "../../imgui/imgui_impl_sdlrenderer2.h"
 #include "../core/GameBoy.hpp"
 class Platform {
  public:
   Platform(char const* title, int windowWidth, int windowHeight,
            int textureWidth, int textureHeight);
   ~Platform() {
+    ImGui_ImplSDLRenderer2_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
@@ -20,6 +25,8 @@ class Platform {
   }
 
   void Update(void const* buffer, int pitch);
+
+  void UpdateWithDebug(void const* buffer, int pitch, const GameBoy* gameboy);
   bool ProcessInput(GameBoy& gameBoy);
   bool saveConfig();
 

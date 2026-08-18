@@ -143,7 +143,7 @@ bool NoiseChannel::getEnvRunning() const {
 }
 
 bool NoiseChannel::getRunning() const {
-  return lengthCounter > 0;
+  return enabled;
 }
 
 void NoiseChannel::DebugPrint() const {

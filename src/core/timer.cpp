@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "../utils/types.hpp"
 #include "GameBoy.hpp"
 // Timer address
 #define TIMA 0xFF05
@@ -26,7 +27,20 @@ void GameBoy::UpdateTimers(int cycles) {
     }
   }
 }
-
+timer GameBoy::getTimerState() const {
+  timer value;
+  value.tima = ReadMemory(0xFF05);
+  value.tma = ReadMemory(0xFF06);
+  value.tmc = ReadMemory(0xFF07);
+  value.rtc.RTCWriteState = m_RTCWriteState;
+  value.rtc.mbc3RTCreg = m_mbc3RtcRegister;
+  value.rtc.RTCaccumulator = m_RTCaccumulator;
+  std::copy(std::begin(m_RTCregs), std::end(m_RTCregs),
+            std::begin(value.rtc.regs));
+  std::copy(std::begin(m_RTCLatch), std::end(m_RTCLatch),
+            std::begin(value.rtc.latch));
+  return value;
+}
 // track the divider reigster
 void GameBoy::DoDividerCounter(int cycles) {
   m_DividerCounter += cycles;

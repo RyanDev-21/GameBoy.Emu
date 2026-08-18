@@ -4,5 +4,4 @@ build-debug/
 rom/
 Fixes.md
 saveFiles/
-imgui/
-
+imgui.ini

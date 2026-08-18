@@ -190,11 +190,11 @@ byte APU::handleReadRouting(word address) const {
         break;
       case 0x26:
         // This has to return  all the channel and main one
-        result |= powerControl << 7;
         result |= square_1.getRunning();
         result |= square_2.getRunning() << 1;
         result |= wave.getRunning() << 2;
         result |= noise.getRunning() << 3;
+        result |= powerControl << 7;
         break;
     }
   }

@@ -185,5 +185,11 @@ class GameBoy {
   word* getBG_Palette() const;
   word* getOBJ_Palette();
   const byte* GetVram(int bank);
+  timer getTimerState() const;
+  Interrupt getInterruptState() const;
+  Internal getCPUState() const;
+  MBC getMBCState() const;
+  HDMA getHDMAState() const;
+  std::vector<byte> getCartridgeMemory() const;
 };
 #endif

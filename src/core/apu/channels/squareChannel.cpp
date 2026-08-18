@@ -186,7 +186,7 @@ bool SquareChannel::getEnvRunning() const {
 }
 
 bool SquareChannel::getRunning() const {
-  return lengthCounter > 0;
+  return enabled;
 }
 
 void SquareChannel::DebugPrint() const {

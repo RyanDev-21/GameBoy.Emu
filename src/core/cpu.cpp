@@ -1172,3 +1172,16 @@ void GameBoy::ToggleDoubleSpeed() {
   m_rom[0xFF4D] = key;
   m_doubleSpeed = (key & 0x80) != 0;
 }
+
+Internal GameBoy::getCPUState() const {
+  Internal cpu;
+  cpu.doubleSpeed = m_doubleSpeed;
+  cpu.isGBC = m_isGBC;
+  cpu.ramSize = ramSize;
+  cpu.RegisterAF = m_RegisterAF.reg;
+  cpu.RegisterBC = m_RegisterBC.reg;
+  cpu.RegisterDE = m_RegisterDE.reg;
+  cpu.RegisterHL = m_RegisterHL.reg;
+  cpu.StackPointer = m_stackPointer.reg;
+  return cpu;
+};

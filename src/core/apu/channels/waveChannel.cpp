@@ -116,7 +116,7 @@ byte WaveChannel::getOutPutVol() const {
 }
 
 bool WaveChannel::getRunning() const {
-  return lengthCounter > 0;
+  return enabled;
 }
 
 void WaveChannel::DebugPrint() const {

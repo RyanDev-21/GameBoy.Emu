@@ -245,6 +245,9 @@ const byte* GameBoy::GetVram(int bank) {
   return m_vram[bank];
 }
 
+std::vector<byte> GameBoy::getCartridgeMemory() const {
+  return m_CartridgeMemory;
+};
 // word* GameBoy::getOBJ_Palette() const {
 //   word* data = new word[32];
 // }

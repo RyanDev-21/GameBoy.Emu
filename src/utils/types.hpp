@@ -21,6 +21,68 @@ typedef unsigned char byte;
 typedef unsigned short word;
 typedef signed short signed_word;
 typedef signed char signed_byte;
+union Register {
+  word reg;
+  struct {
+    byte lo;
+    byte hi;
+  };
+};
+
+typedef struct {
+  byte regs[5];
+  byte latch[5];
+  float RTCaccumulator;
+  byte RTCWriteState;
+  bool mbc3RTCreg;
+} RTCregs;
+
+typedef struct {
+  bool masterInterrupt;
+  bool EIpending;
+  bool halt;
+  bool halt_Bug;
+  bool previousStatusLine;
+} Interrupt;
+
+typedef struct {
+  bool hdmaActive;
+  bool hdmaHBlankMode;
+  bool hdmaLineDone;
+  word hdmaRemaining;
+} HDMA;
+
+typedef struct {
+  byte tima;
+  byte tma;
+  byte tmc;
+  RTCregs rtc;
+} timer;
+
+typedef struct {
+  byte current_ramBank;
+  byte enabled_ram;
+  byte enabled_rom;
+  word current_romBank;
+  byte current_vramBank;
+  byte current_wramBank;
+  bool MBC1;
+  bool MBC2;
+  bool MBC3;
+  bool MBC5;
+} MBC;
+
+typedef struct {
+  bool isGBC;
+  word RegisterAF;
+  word RegisterBC;
+  word RegisterDE;
+  word RegisterHL;
+  word StackPointer;
+  size_t ramSize;
+  bool doubleSpeed;
+} Internal;
+
 struct GBCcolor {
   byte r, g, b;
 };
@@ -43,14 +105,6 @@ enum DutyCycle {
   ONE = 1,
   TWO = 2,
   THREE = 3,
-};
-
-union Register {
-  word reg;
-  struct {
-    byte lo;
-    byte hi;
-  };
 };
 
 #pragma pack(push, 1)

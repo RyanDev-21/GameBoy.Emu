@@ -73,3 +73,13 @@ word GameBoy::PopWordFromStack() {
   m_stackPointer.reg++;
   return (high << 8) | low;
 }
+
+Interrupt GameBoy::getInterruptState() const {
+  Interrupt state;
+  state.masterInterrupt = m_MasterInterrupt;
+  state.EIpending = m_EIpending;
+  state.halt = m_Halt;
+  state.halt_Bug = m_HaltBug;
+  state.previousStatusLine = m_previousStatusLine;
+  return state;
+};

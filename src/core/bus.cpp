@@ -159,7 +159,7 @@ void GameBoy::WriteMemory(word address, byte data) {
   }
   // transfer length/mode/start reg
   // the reason we need to dec the data&0x7F is because
-  // when the gameboy write the lenght of that data they want to copy
+  // when the gameboy write the length of that data they want to copy
   // they alwasy write as length-1 so in order to get the actual length
   // we need to inc that back again
   else if (address == 0xFF55) {
@@ -252,7 +252,7 @@ byte GameBoy::ReadMemory(word address) const {
   else if (address >= 0xD000 && address <= 0xDFFF) {
     return m_wram[current_wramBank][address - 0xD000];
   } else if (address >= 0xFF10 && address <= 0xFF3F) {
-    apu.handleReadRouting(address);
+    return apu.handleReadRouting(address);
   } else if (address == 0xFF4D) {
     return m_rom[0xFF4D];
   }
@@ -466,3 +466,27 @@ void GameBoy::DoHDMAChunk() {
     m_rom[0xFF55] = 0xFF;  // 0xFF = transer finished
   }
 }
+
+MBC GameBoy::getMBCState() const {
+  MBC state;
+  state.current_ramBank = current_ramBank;
+  state.current_romBank = current_romBank;
+  state.current_vramBank = current_vramBank;
+  state.current_wramBank = current_wramBank;
+  state.enabled_ram = m_enableRAM;
+  state.enabled_rom = m_enableROM;
+  state.MBC1 = m_MBC1;
+  state.MBC2 = m_MBC2;
+  state.MBC3 = m_MBC3;
+  state.MBC5 = m_MBC5;
+  return state;
+};
+
+HDMA GameBoy::getHDMAState() const {
+  HDMA state;
+  state.hdmaActive = m_hdmaActive;
+  state.hdmaHBlankMode = m_hdmaHBlankMode;
+  state.hdmaLineDone = m_hdmaLineDone;
+  state.hdmaRemaining = m_hdmaRemaining;
+  return state;
+};

@@ -19,11 +19,13 @@ namespace fs = std::filesystem;
 //   return n;
 // }
 int main(int argc, char* argv[]) {
-  if (argc < 2) {
-    fprintf(stderr, "Usage: %s <rom_path> \n", argv[0]);
+  if (argc < 3) {
+    fprintf(stdout, "Usage: %s <rom_path> --default/--debug \n", argv[0]);
     return 1;
   }
   const char* romName = argv[1];
+  const char* option = argv[2];
+  bool debug = strcmp(option, "--default") != 0;
   std::string dirName = "saveFiles";
   fs::path dirPath = fs::path(dirName);
   fs::path romPath = fs::path(romName);
@@ -61,8 +63,8 @@ int main(int argc, char* argv[]) {
       }
       cyclesThisFrame += gameboy.Update();
     }
-    platform.Update(gameboy.GetScreenData(), 160 * 4);
-
+    debug ? platform.UpdateWithDebug(gameboy.GetScreenData(), 160 * 4, &gameboy)
+          : platform.Update(gameboy.GetScreenData(), 160 * 4);
     // These commented out lines are for when i was debugging
     // int white = countWhitePixel(gameboy.GetScreenData());
     // bool isWhite =
