@@ -146,7 +146,7 @@ void SquareChannel::EnvClock() {
     if (envPeriod == 0) {
       envPeriod = 8;
     }
-    if (envRunning && envPeriod > 0) {
+    if (envRunning && envPeriodLoad > 0) {
       if (envAddMode && volume < 15) {
         volume++;
       } else if (!envAddMode && volume > 0) {

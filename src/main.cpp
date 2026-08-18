@@ -8,16 +8,16 @@
 #include "core/GameBoy.hpp"
 
 namespace fs = std::filesystem;
-int countWhitePixel(const byte* screen) {
-  int n = 0;
-  for (int i = 0; i < 160 * 144; i++) {
-    if (screen[i] && screen[i + 1] && screen[i + 2] && screen[i + 3]) {
-      n++;
-      screen += 4;
-    }
-  }
-  return n;
-}
+// int countWhitePixel(const byte* screen) {
+//   int n = 0;
+//   for (int i = 0; i < 160 * 144; i++) {
+//     if (screen[i] && screen[i + 1] && screen[i + 2] && screen[i + 3]) {
+//       n++;
+//       screen += 4;
+//     }
+//   }
+//   return n;
+// }
 int main(int argc, char* argv[]) {
   if (argc < 2) {
     fprintf(stderr, "Usage: %s <rom_path> \n", argv[0]);

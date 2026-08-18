@@ -85,15 +85,12 @@ void NoiseChannel::step() {
 }
 
 void NoiseChannel::envClock() {
-  if (envelopPeriodLoad == 0) {
-    return;
-  }
   if (--envelopPeriod <= 0) {
     envelopPeriod = envelopPeriodLoad;
     if (envelopPeriod == 0) {
       envelopPeriod = 8;
     }
-    if (envelopRunning) {
+    if (envelopRunning && envelopPeriodLoad > 0) {
       if (envelopAddmode && volume < 15) {
         volume++;
       } else if (!envelopAddmode && volume > 0) {

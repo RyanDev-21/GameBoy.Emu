@@ -314,7 +314,6 @@ COLOUR GameBoy::ReadColor(int colorNum, word address) {
   byte color = (colorPalette >> (colorNum * 2)) & 0x03;
   switch (color) {
     case 0: return WHITE;
-
     case 1: return LIGHT_GRAY;
     case 2: return DARK_GRAY;
     case 3: return BLACK;

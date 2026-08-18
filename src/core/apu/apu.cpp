@@ -203,15 +203,3 @@ byte APU::handleReadRouting(word address) const {
   }
   return result;
 };
-
-// float APU::HighPassFilter(float in, float& capacitor) {
-//   float out = in - capacitor;
-//   capacitor = in - out * kCharge;
-//   return out;
-// }
-
-// void APU::DebugPrint() const {
-//   for (int i = 0; i < sample_size; i++) {
-//     fprintf(stderr, "sample value at index %d : %f\n", i, mainBuffer[i]);
-//   }
-// }

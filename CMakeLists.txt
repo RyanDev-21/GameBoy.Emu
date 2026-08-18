@@ -22,6 +22,7 @@ add_executable(${PROJECT_NAME}
     src/utils/Debug.cpp
     src/utils/StringUtils.cpp
     src/Platform/Platform.cpp
+    # imgui/imgui.cpp
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2)

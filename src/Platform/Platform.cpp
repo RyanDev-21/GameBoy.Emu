@@ -27,7 +27,7 @@ Platform::Platform(char const* title, int windowWidth, int windowHeight,
   for (int i = 0; i < SDL_NUM_SCANCODES; i++) {
     keys[i] = -1;
   }
-  std::ifstream file("key_config.txt");
+  std::ifstream file("gameboy_gamePad.config");
   SDL_Scancode default_keys[8] = {
       SDL_SCANCODE_D,  // RIGHT
       SDL_SCANCODE_A,  // LEFT
