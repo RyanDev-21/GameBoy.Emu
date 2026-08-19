@@ -29,8 +29,8 @@ void GameBoy::UpdateGraphics(int cycles) {
         m_rom[0xFF44] = 0;
       }
     }
+    SetLCD_status();
   }
-  SetLCD_status();
   // HBlank DMA: one 16-byte chunk per HBlank while mode 0 is active
   if (m_hdmaActive && m_hdmaHBlankMode) {
     // only during the mode-0 and mode-2

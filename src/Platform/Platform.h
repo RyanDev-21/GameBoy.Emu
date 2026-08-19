@@ -36,7 +36,12 @@ class Platform {
   SDL_Texture* texture{};
   std::map<std::string, int> gbButtons;
   int keys[SDL_NUM_SCANCODES];
+  int buttonScancodes[8];
+  bool showKeymapEditor = false;
+  bool capturing = false;
+  int captureTarget = -1;
   void processKeysFromFile(std::ifstream& file);
+  void refreshButtonScancodes();
 };
 
 #endif

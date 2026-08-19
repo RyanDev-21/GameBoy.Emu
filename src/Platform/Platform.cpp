@@ -59,6 +59,12 @@ Platform::Platform(char const* title, int windowWidth, int windowHeight,
   } else {
     processKeysFromFile(file);
   }
+  // build reverse map: button -> scancode
+  for (int i = 0; i < 8; ++i) buttonScancodes[i] = -1;
+  for (int sc = 0; sc < SDL_NUM_SCANCODES; ++sc) {
+    int b = keys[sc];
+    if (b >= 0 && b < 8) buttonScancodes[b] = sc;
+  }
 }
 
 void Platform::Update(void const* buffer, int pitch) {
@@ -164,6 +170,63 @@ void Platform::UpdateWithDebug(void const* buffer, int pitch,
     }
     ImGui::TreePop();
   }
+  // Keymap editor UI
+  if (ImGui::CollapsingHeader("Input / Keymap")) {
+    if (ImGui::Button("Load from file")) {
+      std::ifstream file("gameboy_gamePad.config");
+      if (file.is_open()) {
+        processKeysFromFile(file);
+        // refresh reverse map
+        for (int i = 0; i < 8; ++i) buttonScancodes[i] = -1;
+        for (int sc = 0; sc < SDL_NUM_SCANCODES; ++sc) {
+          int b = keys[sc];
+          if (b >= 0 && b < 8) buttonScancodes[b] = sc;
+        }
+      }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Save to file")) {
+      saveConfig();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Restore Defaults")) {
+      SDL_Scancode default_keys[8] = {
+          SDL_SCANCODE_D,  // RIGHT
+          SDL_SCANCODE_A,  // LEFT
+          SDL_SCANCODE_W,  // UP
+          SDL_SCANCODE_S,  // DOWN
+          SDL_SCANCODE_J,  // A
+          SDL_SCANCODE_K,  // B
+          SDL_SCANCODE_U,  // SELECT
+          SDL_SCANCODE_I,  // START
+      };
+      for (int i = 0; i < SDL_NUM_SCANCODES; i++) keys[i] = -1;
+      for (int i = 0; i < 8; i++) {
+        keys[default_keys[i]] = i;
+        buttonScancodes[i] = default_keys[i];
+      }
+    }
+
+    ImGui::Spacing();
+    ImGui::Text("Click 'Capture' then press a key to assign.");
+    const char* button_names[8] = {"RIGHT", "LEFT", "UP", "DOWN",
+                                   "A",     "B",    "SELECT", "START"};
+    for (int i = 0; i < 8; ++i) {
+      ImGui::PushID(i);
+      ImGui::TextUnformatted(button_names[i]);
+      ImGui::SameLine(150);
+      const char* scname = "(unassigned)";
+      if (buttonScancodes[i] >= 0) scname = SDL_GetScancodeName((SDL_Scancode)buttonScancodes[i]);
+      ImGui::TextUnformatted(scname);
+      ImGui::SameLine(350);
+      if (ImGui::Button(capturing && captureTarget==i ? "..." : "Capture")) {
+        capturing = true;
+        captureTarget = i;
+      }
+      ImGui::PopID();
+    }
+  }
+
   ImGui::End();
   ImGui::Render();
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -185,6 +248,27 @@ bool Platform::ProcessInput(GameBoy& gameBoy) {
       quit = true;
     }
     if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+      // If capturing for remap, consume the next KEYDOWN and assign
+      if (event.type == SDL_KEYDOWN && capturing && captureTarget >= 0) {
+        SDL_Scancode sc = event.key.keysym.scancode;
+        // If this scancode was assigned to another button, clear that button
+        int prevBtn = keys[sc];
+        if (prevBtn >= 0 && prevBtn < 8) {
+          buttonScancodes[prevBtn] = -1;
+        }
+        // Clear old scancode for this target
+        int oldSc = buttonScancodes[captureTarget];
+        if (oldSc >= 0 && oldSc < SDL_NUM_SCANCODES) {
+          keys[oldSc] = -1;
+        }
+        // Assign new mapping
+        keys[sc] = captureTarget;
+        buttonScancodes[captureTarget] = sc;
+        capturing = false;
+        captureTarget = -1;
+        continue;
+      }
+
       int btn = keys[event.key.keysym.scancode];
       if (btn >= 0) {
         switch (event.type) {
@@ -211,4 +295,26 @@ void Platform::processKeysFromFile(std::ifstream& file) {
     SDL_Scancode sc = SDL_GetScancodeFromName(key.c_str());
     keys[sc] = button;
   }
+}
+
+void Platform::refreshButtonScancodes() {
+  for (int i = 0; i < 8; ++i) buttonScancodes[i] = -1;
+  for (int sc = 0; sc < SDL_NUM_SCANCODES; ++sc) {
+    int b = keys[sc];
+    if (b >= 0 && b < 8) buttonScancodes[b] = sc;
+  }
+}
+
+bool Platform::saveConfig() {
+  std::ofstream file("gameboy_gamePad.config", std::ios::trunc);
+  if (!file.is_open()) return false;
+  const char* button_names[8] = {"RIGHT", "LEFT", "UP", "DOWN",
+                                 "A",     "B",    "SELECT", "START"};
+  for (int i = 0; i < 8; ++i) {
+    const char* scname = "";
+    if (buttonScancodes[i] >= 0) scname = SDL_GetScancodeName((SDL_Scancode)buttonScancodes[i]);
+    file << button_names[i] << " = " << scname << "\n";
+  }
+  file.close();
+  return true;
 }

@@ -120,9 +120,7 @@ int GameBoy::Update() {
   cycles += DoInterrupts();
   UpdateTimers(cycles);
   int newCycles = m_doubleSpeed ? cycles / 2 : cycles;
-  // printf("[LOG] Program Counter before graphics:%d\n", m_programCounter);
   UpdateGraphics(newCycles);
-  // printf("[LOG] Program Counter after graphics:%d\n", m_programCounter);
   apu.step(newCycles);
   return newCycles;
 }
@@ -245,9 +243,17 @@ const byte* GameBoy::GetVram(int bank) {
   return m_vram[bank];
 }
 
+std::string GameBoy::GetSerialOutput() const {
+  return std::string((const char*)m_SerialOutput);
+}
+
 std::vector<byte> GameBoy::getCartridgeMemory() const {
   return m_CartridgeMemory;
 };
+
+bool GameBoy::isDoubleSpeed() const {
+  return m_doubleSpeed;
+}
 // word* GameBoy::getOBJ_Palette() const {
 //   word* data = new word[32];
 // }
