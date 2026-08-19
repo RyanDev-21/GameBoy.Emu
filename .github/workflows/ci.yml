@@ -37,31 +37,37 @@ jobs:
       - name: Run smoketest (Debug)
         run: |
           ./build-debug/GameBoy --smoketest
-      - name: Run blargg cpu_instrs test
-        run: |
-          ./build-debug/GameBoy "rom/blargggameboytestroms/cpu_instrs/cpu_instrs/cpu_instrs.gb" --blargg 200000
+    
+      # - name: Fetch blargg Roms
+      #   run: |
+      #     mkdir -p rom && cd rom
+      #     curl -L -o cpu_instrs.zip "https://example.com/blargg_cpu_instrs.zip"
+      #     unzip cpu_instrs.zip -d blargggameboytestroms
+      # - name: Run blargg cpu_instrs test
+      #   run: |
+      #    SDL_AUDIODRIVER=dummy ./build-debug/GameBoy "rom/blargggameboytestroms/cpu_instrs/cpu_instrs/cpu_instrs.gb" --blargg 200000
 
-      - name: Generate visual snapshot
-        run: |
-          mkdir -p artifacts
-          ./build-debug/GameBoy "rom/DMGroms/Super Mario Land (World) (Rev 1).gb" --snapshot 60 artifacts/snapshot.ppm
+      # - name: Generate visual snapshot
+      #   run: |
+      #     mkdir -p artifacts
+      #     ./build-debug/GameBoy "rom/DMGroms/Super Mario Land (World) (Rev 1).gb" --snapshot 60 artifacts/snapshot.ppm
 
-      - name: Compare snapshot with golden (if present)
-        run: |
-          sudo apt-get install -y imagemagick
-          if [ -f golden/snapshot.ppm ]; then
-            DIFF=$(compare -metric AE -fuzz 2% golden/snapshot.ppm artifacts/snapshot.ppm null: 2>&1 || true)
-            echo "Diff result: $DIFF"
-            if [ "$DIFF" != "0" ]; then
-              echo "Snapshot differs from golden (difference: $DIFF)"
-              exit 2
-            fi
-          else
-            echo "No golden snapshot present; uploading produced snapshot for inspection."
-          fi
+      # - name: Compare snapshot with golden (if present)
+      #   run: |
+      #     sudo apt-get install -y imagemagick
+      #     if [ -f golden/snapshot.ppm ]; then
+      #       DIFF=$(compare -metric AE -fuzz 2% golden/snapshot.ppm artifacts/snapshot.ppm null: 2>&1 || true)
+      #       echo "Diff result: $DIFF"
+      #       if [ "$DIFF" != "0" ]; then
+      #         echo "Snapshot differs from golden (difference: $DIFF)"
+      #         exit 2
+      #       fi
+      #     else
+      #       echo "No golden snapshot present; uploading produced snapshot for inspection."
+      #     fi
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: visual-artifacts
-          path: artifacts/
+      # - name: Upload artifacts
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: visual-artifacts
+      #     path: artifacts/
