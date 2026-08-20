@@ -8,7 +8,6 @@ A compact Game Boy / Game Boy Color emulator project (development workspace).
 
 - CMake (>= 3.10) and a C++ toolchain (g++, clang++)
 - SDL2 development libraries (or the platform equivalents used by the project)
-- Git (optional)
 
 **Build (Release)**
 
