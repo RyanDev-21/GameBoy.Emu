@@ -119,17 +119,5 @@ bool WaveChannel::getRunning() const {
   return enabled;
 }
 
-void WaveChannel::DebugPrint() const {
-  fprintf(stderr, "Wave Chanel\n");
-  fprintf(stderr, "timerLoad :%d\n", timerLoad);
-  fprintf(stderr, "timer:%d\n", timer);
-  fprintf(stderr, "dacEnabled:%d\n", dacEnabled);
-  fprintf(stderr, "volumeCode:%d\n", volumeCode);
-  fprintf(stderr, "outputVol:%d\n", outputVol);
-  fprintf(stderr, "lengthEnable:%d\n", lengthEnable);
-  fprintf(stderr, "enabled:%d\n", enabled);
-  fprintf(stderr, "positionCounter:%d\n", positionCounter);
-  for (int i = 0; i < 16; i++) {
-    fprintf(stderr, "waveTable value at index %d:%d\n", i, waveTable[i]);
-  }
-}
+
+
