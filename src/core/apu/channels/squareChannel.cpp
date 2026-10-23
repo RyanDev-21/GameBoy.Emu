@@ -189,25 +189,3 @@ bool SquareChannel::getRunning() const {
   return enabled;
 }
 
-void SquareChannel::DebugPrint() const {
-  fprintf(stderr, "Square Chanel\n");
-  fprintf(stderr, "**Timer** \ntimer:%d\n", timer);
-  fprintf(stderr, "TimerLoad:%d\n", timerLoad);
-  fprintf(stderr, "shadowFeq:%d\n", shadowFeq);
-  fprintf(stderr, "**Enabled And stuff** \ndacEnabled:%d\n", dacEnabled);
-  fprintf(stderr, "enabled:%d\n", enabled);
-  fprintf(stderr, "triggerBit:%d\n", triggerbit);
-  fprintf(stderr, "lengthEnabled:%d\n", lengthEnable);
-  fprintf(stderr, "**Volume**volume:%d\n", volume);
-  fprintf(stderr, "volume load :%d\n", volumeLoad);
-  fprintf(stderr, "outputVol:%d\n", outputVol);
-  fprintf(stderr, "**Envelop stuff**\n envAddMode:%d\n", envAddMode);
-  fprintf(stderr, "envelopPeriod:%d\n", envPeriod);
-  fprintf(stderr, "envelopPeriodLoad:%d\n", envPeriodLoad);
-  fprintf(stderr, "envelopRunning:%d\n", envRunning);
-  fprintf(stderr, "**Sweep**\nSweepPeriod:%d\n", sweepPeriod);
-  fprintf(stderr, "SweepPeriodLoad:%d\n", sweepPeriodLoad);
-  fprintf(stderr, "sweepShift:%d\n", sweepShift);
-  fprintf(stderr, "negate:%d\n", negate);
-  fprintf(stderr, "sequencePointer:%d\n", sequencePointer);
-}
