@@ -173,9 +173,6 @@ void SquareChannel::Trigger() {
   if (sweepPeriod == 0) {
     sweepPeriod = 8;
   }
-  // Do not override `enabled` here — triggering should enable the channel
-  // regardless of sweep configuration. The sweep may later disable the
-  // channel if it overflows during sweepCalc().
   if (sweepShift > 0) {
     sweepCalc();
   }
