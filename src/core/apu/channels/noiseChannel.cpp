@@ -145,23 +145,3 @@ bool NoiseChannel::getEnvRunning() const {
 bool NoiseChannel::getRunning() const {
   return enabled;
 }
-
-void NoiseChannel::DebugPrint() const {
-  fprintf(stderr, "Noise Chanel\n");
-  fprintf(stderr, "**Timer** \ntimer:%d\n", timer);
-  fprintf(stderr, "dividerCode:%d\n", dividerCode);
-  fprintf(stderr, "**Enabled And stuff** \ndacEnabled:%d\n", dacEnabled);
-  fprintf(stderr, "enabled:%d\n", enabled);
-  fprintf(stderr, "triggerBit:%d\n", triggerBit);
-  fprintf(stderr, "lengthEnabled:%d\n", lengthEnabled);
-  fprintf(stderr, "**Volume**volume:%d\n", volume);
-  fprintf(stderr, "volume load :%d\n", volumeLoad);
-  fprintf(stderr, "outputVol:%d\n", outputVol);
-  fprintf(stderr, "**Envelop stuff**\n envAddMode:%d\n", envelopAddmode);
-  fprintf(stderr, "envelopPeriod:%d\n", envelopPeriod);
-  fprintf(stderr, "envelopPeriodLoad:%d\n", envelopPeriodLoad);
-  fprintf(stderr, "envelopRunning:%d\n", envelopRunning);
-  fprintf(stderr, "**LSFR**\nlsfr:%d\n", lsfr);
-  fprintf(stderr, "clockShift:%d\n", clockShift);
-  fprintf(stderr, "lsfrWidth:%d\n", lsfrWidth);
-}
